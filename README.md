@@ -7,7 +7,7 @@ Visar när nästa buss går från dina hållplatser, med realtid från [Trafikla
 1. HACS → ⋮ → **Custom repositories** → lägg till `https://github.com/andersmoldin/ha-bussar`, typ **Integration**.
 2. Installera **Bussar** och starta om Home Assistant.
 3. Inställningar → Enheter och tjänster → **Lägg till integration** → **Bussar**, och ange din nyckel för Trafiklab Realtime APIs.
-4. På integrationen: **Lägg till bevakad linje** → sök hållplats → välj linje och läge.
+4. På integrationen: **Lägg till bevakad linje** → sök hållplats → välj linje och läge. Syns inte linjen bland kommande avgångar (nattetid eller gles linje), välj **Annan linje…** och ange linje och läge själv.
 
 Varje bevakad linje blir en sensor med minuter till nästa avgång. Klockslag, destination och förväntad tid finns som attribut.
 

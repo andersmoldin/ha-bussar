@@ -76,7 +76,6 @@ Mätaren räknar ner lokalt varje sekund och rättar sig när ny data kommer.
 
 ## Senare
 
-- Fler bevakade linjer via UI
 - E-ink-skärm
 - Eventuellt en "gå nu"-notis
 - Fler trafikbolag
