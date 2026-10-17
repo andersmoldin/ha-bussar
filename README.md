@@ -9,7 +9,18 @@ Visar när nästa buss går från dina hållplatser, med realtid från [Trafikla
 3. Inställningar → Enheter och tjänster → **Lägg till integration** → **Bussar**, och ange din nyckel för Trafiklab Realtime APIs.
 4. På integrationen: **Lägg till bevakad linje** → sök hållplats → välj linje och läge. Syns inte linjen bland kommande avgångar (nattetid eller gles linje), välj **Annan linje…** och ange linje och läge själv.
 
-Varje bevakad linje blir en sensor med minuter till nästa avgång. Klockslag, destination och förväntad tid finns som attribut.
+Varje bevakad linje blir en sensor med minuter till nästa buss **som går att hinna med**. Har bussen mindre än springtiden kvar går sensorn vidare till nästa.
+
+| Attribut | Betydelse |
+|---|---|
+| `zone` | `plenty` (gott om tid), `go` (nu passar det att gå) eller `run` (du hinner om du springer) |
+| `departure_time`, `expected`, `scheduled` | Klockslag samt förväntad och planerad tid (ISO) |
+| `delay_minutes`, `is_realtime` | Försening i hela minuter, och om tiden är realtid eller tidtabell |
+| `canceled` | Inställda turer (planerad tid) som hoppades över |
+| `following_departure_time`, `following_expected` | Bussen efter |
+| `walk_seconds`, `run_seconds`, `window_seconds` | Zongränserna, så att ett kort kan räkna ner själv |
+
+Gångtid (4,5 min), springtid (2 min) och fönster (5 min) ändras per linje via **⋮ → Ändra gångtider** på den bevakade linjen.
 
 ## Kvoter
 

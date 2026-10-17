@@ -15,6 +15,9 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -25,13 +28,17 @@ from .api import TrafiklabAuthError, TrafiklabError, client_for
 from .const import (
     CONF_LINE,
     CONF_PLATFORM,
+    CONF_RUN_MINUTES,
     CONF_STOP_ID,
     CONF_STOP_NAME,
+    CONF_WALK_MINUTES,
+    CONF_WINDOW_MINUTES,
     DOMAIN,
     SUBENTRY_LINE,
 )
 from .departures import WatchedLine, line_choices, parse_departures
 from .schema import vol
+from .zones import DEFAULT_TIMING
 
 # Godtycklig sökning som bara används för att pröva nyckeln.
 KEY_PROBE_QUERY = "Stockholm"
@@ -103,8 +110,49 @@ class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
+def _minutes() -> NumberSelector:
+    return NumberSelector(
+        NumberSelectorConfig(
+            min=0, max=60, step=0.5, unit_of_measurement="min", mode=NumberSelectorMode.BOX
+        )
+    )
+
+
+def _timing_schema(current: Mapping[str, Any]) -> Any:
+    defaults = {
+        CONF_WALK_MINUTES: DEFAULT_TIMING.walk.total_seconds() / 60,
+        CONF_RUN_MINUTES: DEFAULT_TIMING.run.total_seconds() / 60,
+        CONF_WINDOW_MINUTES: DEFAULT_TIMING.window.total_seconds() / 60,
+    }
+    return vol.Schema(
+        {
+            vol.Required(key, default=current.get(key, default)): _minutes()
+            for key, default in defaults.items()
+        }
+    )
+
+
 class LineSubentryFlow(ConfigSubentryFlow):
     """Lägg till en bevakad linje: hållplats, linje och läge."""
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Ändra gångtid, springtid och fönster för en bevakad linje."""
+        subentry = self._get_reconfigure_subentry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if user_input[CONF_RUN_MINUTES] > user_input[CONF_WALK_MINUTES]:
+                errors["base"] = "run_longer_than_walk"
+            else:
+                return self.async_update_and_abort(
+                    self._get_entry(), subentry, data_updates=user_input
+                )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_timing_schema(user_input or subentry.data),
+            errors=errors,
+        )
 
     def __init__(self) -> None:
         self._stops: dict[str, str] = {}

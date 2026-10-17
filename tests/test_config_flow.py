@@ -7,7 +7,10 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.bussar.const import (
     CONF_LINE,
     CONF_PLATFORM,
+    CONF_RUN_MINUTES,
     CONF_STOP_ID,
+    CONF_WALK_MINUTES,
+    CONF_WINDOW_MINUTES,
     DOMAIN,
 )
 
@@ -244,3 +247,62 @@ async def test_manual_entry_requires_both_line_and_platform(hass: HomeAssistant,
     assert result["step_id"] == "manual"
     assert result["errors"] == {"base": "missing_line_or_platform"}
     assert not entry.subentries
+
+
+def _entry_with_line_10_a() -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: "secret"},
+        subentries_data=[
+            {
+                "subentry_type": "line",
+                "title": "10 läge A, Hållplats A",
+                "unique_id": f"{STOP_A_ID}_10_A",
+                "data": {
+                    CONF_STOP_ID: STOP_A_ID,
+                    "stop_name": "Hållplats A",
+                    CONF_LINE: "10",
+                    CONF_PLATFORM: "A",
+                },
+            }
+        ],
+    )
+
+
+async def _start_reconfigure(hass: HomeAssistant, entry: MockConfigEntry):
+    subentry_id = next(iter(entry.subentries))
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "line"),
+        context={"source": config_entries.SOURCE_RECONFIGURE, "subentry_id": subentry_id},
+    )
+    return subentry_id, result
+
+
+async def test_walk_run_and_window_can_be_changed_per_watched_line(hass: HomeAssistant):
+    entry = _entry_with_line_10_a()
+    entry.add_to_hass(hass)
+
+    subentry_id, result = await _start_reconfigure(hass, entry)
+    assert result["step_id"] == "reconfigure"
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_WALK_MINUTES: 6, CONF_RUN_MINUTES: 2.5, CONF_WINDOW_MINUTES: 4}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    data = entry.subentries[subentry_id].data
+    timing = (data[CONF_WALK_MINUTES], data[CONF_RUN_MINUTES], data[CONF_WINDOW_MINUTES])
+    assert timing == (6, 2.5, 4)
+
+
+async def test_run_time_longer_than_walk_time_is_rejected(hass: HomeAssistant):
+    entry = _entry_with_line_10_a()
+    entry.add_to_hass(hass)
+    _, result = await _start_reconfigure(hass, entry)
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_WALK_MINUTES: 2, CONF_RUN_MINUTES: 3, CONF_WINDOW_MINUTES: 5}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "run_longer_than_walk"}

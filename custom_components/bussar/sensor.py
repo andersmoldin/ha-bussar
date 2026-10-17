@@ -1,7 +1,9 @@
-"""En sensor per bevakad linje: minuter till nästa avgång."""
+"""En sensor per bevakad linje: minuter till nästa buss som går att hinna, med zon."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
@@ -14,9 +16,19 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from . import BussarConfigEntry
-from .const import CONF_LINE, CONF_PLATFORM, CONF_STOP_ID, DOMAIN, SUBENTRY_LINE
+from .const import (
+    CONF_LINE,
+    CONF_PLATFORM,
+    CONF_RUN_MINUTES,
+    CONF_STOP_ID,
+    CONF_WALK_MINUTES,
+    CONF_WINDOW_MINUTES,
+    DOMAIN,
+    SUBENTRY_LINE,
+)
 from .coordinator import StopCoordinator
-from .departures import Departure, WatchedLine, upcoming
+from .departures import WatchedLine
+from .zones import DEFAULT_TIMING, Assessment, Timing, assess
 
 
 async def async_setup_entry(
@@ -41,6 +53,7 @@ class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
     def __init__(self, coordinator: StopCoordinator, subentry: ConfigSubentry) -> None:
         super().__init__(coordinator)
         self._watched = WatchedLine(subentry.data[CONF_LINE], subentry.data[CONF_PLATFORM])
+        self._timing = _timing(subentry.data)
         self._attr_unique_id = subentry.subentry_id
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, subentry.subentry_id)},
@@ -48,28 +61,59 @@ class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
             entry_type=DeviceEntryType.SERVICE,
         )
 
-    def _next(self) -> Departure | None:
+    def _assess(self) -> Assessment | None:
         if not self.coordinator.data:
             return None
-        found = upcoming(self.coordinator.data, self._watched, now=dt_util.now())
-        return found[0] if found else None
+        return assess(self.coordinator.data, self._watched, now=dt_util.now(), timing=self._timing)
 
     @property
     def native_value(self) -> int | None:
-        departure = self._next()
-        if departure is None:
+        result = self._assess()
+        if result is None:
             return None
-        return int((departure.expected - dt_util.now()).total_seconds() // 60)
+        return int((result.departure.expected - dt_util.now()).total_seconds() // 60)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        departure = self._next()
-        if departure is None:
-            return {}
-        return {
-            "departure_time": dt_util.as_local(departure.expected).strftime("%H:%M"),
-            "expected": departure.expected.isoformat(),
-            "destination": departure.destination,
+        attrs: dict[str, Any] = {
             "line": self._watched.line,
             "platform": self._watched.platform,
+            "walk_seconds": int(self._timing.walk.total_seconds()),
+            "run_seconds": int(self._timing.run.total_seconds()),
+            "window_seconds": int(self._timing.window.total_seconds()),
         }
+        result = self._assess()
+        if result is None:
+            return attrs
+        departure = result.departure
+        attrs |= {
+            "zone": result.zone.value,
+            "departure_time": _clock(departure.expected),
+            "expected": departure.expected.isoformat(),
+            "scheduled": departure.scheduled.isoformat(),
+            "delay_minutes": result.delay_minutes,
+            "is_realtime": departure.is_realtime,
+            "destination": departure.destination,
+            "canceled": [_clock(d.scheduled) for d in result.canceled],
+            "following_departure_time": None,
+            "following_expected": None,
+        }
+        if result.following is not None:
+            attrs["following_departure_time"] = _clock(result.following.expected)
+            attrs["following_expected"] = result.following.expected.isoformat()
+        return attrs
+
+
+def _clock(moment: datetime) -> str:
+    return dt_util.as_local(moment).strftime("%H:%M")
+
+
+def _timing(data: Mapping[str, Any]) -> Timing:
+    def minutes(key: str, default: timedelta) -> timedelta:
+        return timedelta(minutes=data[key]) if key in data else default
+
+    return Timing(
+        walk=minutes(CONF_WALK_MINUTES, DEFAULT_TIMING.walk),
+        run=minutes(CONF_RUN_MINUTES, DEFAULT_TIMING.run),
+        window=minutes(CONF_WINDOW_MINUTES, DEFAULT_TIMING.window),
+    )

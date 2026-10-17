@@ -83,10 +83,11 @@ async def test_sensor_shows_minutes_and_time_of_next_departure(hass: HomeAssista
 
     await _setup(hass, entry)
 
+    # 19:44:40 går inte att hinna (64 s kvar), så sensorn visar bussen 19:59:29.
     line_10 = _state(hass, entry, "10", "A")
-    assert line_10.state == "1"
+    assert line_10.state == "15"
     assert line_10.attributes["unit_of_measurement"] == "min"
-    assert line_10.attributes["departure_time"] == "19:44"
+    assert line_10.attributes["departure_time"] == "19:59"
     assert _state(hass, entry, "20", "B").state == "12"
     assert _state(hass, entry, "40", "A").state == "16"
 
@@ -198,3 +199,34 @@ async def test_api_key_is_not_logged_when_trafiklab_answers_with_html(
     assert entry.state is ConfigEntryState.SETUP_RETRY
     assert "ContentTypeError" in caplog.text
     assert "topsecret" not in caplog.text
+
+
+async def test_sensor_exposes_zone_delay_and_following_bus(hass: HomeAssistant, entry, freezer):
+    freezer.move_to(RECORDED_AT)
+
+    await _setup(hass, entry)
+
+    attrs = _state(hass, entry, "10", "A").attributes
+    assert attrs["zone"] == "plenty"
+    assert attrs["expected"] == "2026-10-17T19:59:29+02:00"
+    assert attrs["scheduled"] == "2026-10-17T19:59:29+02:00"
+    assert attrs["delay_minutes"] == 0
+    assert attrs["is_realtime"] is False
+    assert attrs["canceled"] == []
+    assert attrs["following_departure_time"] == "20:14"
+    assert attrs["following_expected"] == "2026-10-17T20:14:47+02:00"
+    assert (attrs["walk_seconds"], attrs["run_seconds"], attrs["window_seconds"]) == (270, 120, 300)
+
+
+async def test_zone_go_when_departure_is_within_walk_time_plus_window(
+    hass: HomeAssistant, entry, freezer
+):
+    # Linje 20 läge B går 19:55:54 (realtid, 1 s tidig): 9 min 30 s kvar kl. 19:46:24.
+    freezer.move_to(datetime(2026, 10, 17, 19, 46, 24, tzinfo=STOCKHOLM))
+
+    await _setup(hass, entry)
+
+    attrs = _state(hass, entry, "20", "B").attributes
+    assert attrs["zone"] == "go"
+    assert attrs["is_realtime"] is True
+    assert attrs["delay_minutes"] == 0

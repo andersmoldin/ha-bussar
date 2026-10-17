@@ -28,7 +28,8 @@
   "config_subentries": {
     "line": {
       "initiate_flow": {
-        "user": "Lägg till bevakad linje"
+        "user": "Lägg till bevakad linje",
+        "reconfigure": "Ändra gångtider"
       },
       "entry_type": "Bevakad linje",
       "step": {
@@ -58,16 +59,27 @@
             "line": "Linje",
             "platform": "Läge"
           }
+        },
+        "reconfigure": {
+          "title": "Gångtider",
+          "description": "Minuter från dörren till hållplatsen. Fönstret är hur länge mätaren visar 'nu passar det att gå'.",
+          "data": {
+            "walk_minutes": "Gångtid",
+            "run_minutes": "Springtid",
+            "window_minutes": "Fönster"
+          }
         }
       },
       "error": {
         "cannot_connect": "Kunde inte nå Trafiklab.",
         "no_stops": "Inga hållplatser hittades.",
-        "missing_line_or_platform": "Ange både linje och läge."
+        "missing_line_or_platform": "Ange både linje och läge.",
+        "run_longer_than_walk": "Springtiden kan inte vara längre än gångtiden."
       },
       "abort": {
         "cannot_connect": "Kunde inte nå Trafiklab.",
-        "already_configured": "Den linjen och det läget bevakas redan."
+        "already_configured": "Den linjen och det läget bevakas redan.",
+        "reconfigure_successful": "Gångtiderna är uppdaterade."
       }
     }
   }
