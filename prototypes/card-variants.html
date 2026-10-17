@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYP – Bussar-kort (#5)</title>
+<!--
+  PROTOTYP, kastas efter beslut. Fråga: hur ska mätarkortet se ut?
+  Runda 3: A2 valdes. Hur visas nästa buss per linje? Växla ?variant=N1|N2|N3|A2
+  eller pilarna i den flytande listen. Designkälla: Home Assistants egna CSS-variabler
+  och kortstil (ha-card), eftersom kortet ska leva i HA:s dashboard.
+-->
+<style>
+  :root {
+    --primary-background-color: #fafafa;
+    --card-background-color: #ffffff;
+    --primary-text-color: #212121;
+    --secondary-text-color: #727272;
+    --divider-color: rgba(0,0,0,.12);
+    --ha-card-border-radius: 12px;
+    --ha-card-box-shadow: 0 1px 3px rgba(0,0,0,.12);
+    --success-color: #43a047;
+    --warning-color: #ffa600;
+    --error-color: #db4437;
+    --go-color: #f4c20d;
+    --track-color: rgba(0,0,0,.08);
+  }
+  html[data-theme="dark"] {
+    --primary-background-color: #111111;
+    --card-background-color: #1c1c1c;
+    --primary-text-color: #e1e1e1;
+    --secondary-text-color: #9b9b9b;
+    --divider-color: rgba(225,225,225,.12);
+    --ha-card-box-shadow: none;
+    --track-color: rgba(255,255,255,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: Roboto, -apple-system, "Segoe UI", sans-serif;
+    background: var(--primary-background-color); color: var(--primary-text-color);
+    padding: 16px 12px 96px;
+  }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; font-size: 13px; color: var(--secondary-text-color); }
+  .toolbar button { font: inherit; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); border-radius: 16px; padding: 4px 10px; }
+  .toolbar button[aria-pressed="true"] { background: var(--primary-text-color); color: var(--card-background-color); }
+  .dash { max-width: 440px; margin: 0 auto; display: grid; gap: 12px; }
+  .ha-card { background: var(--card-background-color); border-radius: var(--ha-card-border-radius); box-shadow: var(--ha-card-box-shadow); border: 1px solid var(--divider-color); overflow: hidden; }
+  .ha-card .title { padding: 14px 16px 4px; font-size: 18px; }
+  .fake { padding: 14px 16px; color: var(--secondary-text-color); font-size: 14px; display: flex; justify-content: space-between; }
+  .badge { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 28px; padding: 0 8px; border-radius: 8px; font-weight: 700; color: #fff; background: #1565c0; font-size: 15px; }
+  .muted { color: var(--secondary-text-color); }
+  .rt { font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--divider-color); color: var(--secondary-text-color); }
+  .rt.live { color: var(--success-color); border-color: currentColor; }
+  .late { color: var(--error-color); font-weight: 600; }
+  .early { color: var(--success-color); font-weight: 600; }
+  .zone-plenty { --zc: var(--success-color); }
+  .zone-go { --zc: var(--go-color); }
+  .zone-run { --zc: var(--warning-color); }
+  .zone-none { --zc: var(--secondary-text-color); }
+
+  /* Variant A: rad per linje med tömmande stapel */
+  .a-row { padding: 12px 16px; border-top: 1px solid var(--divider-color); display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 4px 12px; align-items: center; }
+  .a-row:first-of-type { border-top: 0; }
+  .a-dest { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .a-min { font-size: 22px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .a-bar { grid-column: 1 / -1; height: 10px; border-radius: 5px; background: var(--track-color); overflow: hidden; }
+  .a-bar > div { height: 100%; background: var(--zc); border-radius: 5px; transition: width .4s linear, background .4s; }
+  .a-meta { grid-column: 1 / -1; font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; color: var(--secondary-text-color); }
+  .a-zone { color: var(--zc); font-weight: 600; }
+
+
+  /* A2/A3: avskalade varianter av A */
+  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--success-color); margin-right: 6px; vertical-align: 2px; animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .a2-right { text-align: right; line-height: 1.1; }
+  .a2-right .a-min { display: block; }
+  .a2-time { font-size: 12px; color: var(--secondary-text-color); font-variant-numeric: tabular-nums; }
+  .a3-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; font-size: 13px; }
+  .a3-meta .a-zone { font-weight: 600; }
+
+
+  /* Runda 3: A2 + nästa buss */
+  .n-sub { font-size: 12px; color: var(--secondary-text-color); display: block; margin-top: 2px; }
+  .n-row { cursor: pointer; }
+  .n-more { grid-column: 1 / -1; font-size: 13px; color: var(--secondary-text-color); padding-top: 2px; }
+  .n-chev { font-size: 11px; color: var(--secondary-text-color); margin-left: 4px; }
+
+  /* Variant B: hjälte med "gå nu"-besked, kompakta rader under */
+  .b-hero { padding: 18px 16px 14px; background: color-mix(in srgb, var(--zc) 18%, transparent); border-bottom: 1px solid var(--divider-color); }
+  .b-hero .big { font-size: 26px; font-weight: 700; line-height: 1.15; }
+  .b-hero .sub { margin-top: 6px; font-size: 14px; color: var(--secondary-text-color); }
+  .b-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--divider-color); }
+  .b-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--zc); display: inline-block; margin-right: 6px; }
+  .b-when { text-align: right; font-variant-numeric: tabular-nums; }
+  .b-when b { font-size: 18px; }
+
+  /* Variant C: tidslinje, nu → +30 min, zonband per linje */
+  .c-axis { position: relative; height: 18px; margin: 8px 16px 0 64px; font-size: 11px; color: var(--secondary-text-color); }
+  .c-axis span { position: absolute; transform: translateX(-50%); }
+  .c-row { display: grid; grid-template-columns: 48px minmax(0,1fr); gap: 8px; align-items: center; padding: 10px 16px; }
+  .c-track { position: relative; height: 34px; border-radius: 8px; background: var(--track-color); overflow: hidden; }
+  .c-band { position: absolute; top: 0; bottom: 0; }
+  .c-bus { position: absolute; top: 50%; transform: translate(-50%,-50%); font-size: 11px; font-weight: 700; background: var(--card-background-color); border: 2px solid var(--zc); border-radius: 10px; padding: 1px 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .c-now { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: var(--primary-text-color); }
+  .c-legend { display: flex; gap: 12px; padding: 4px 16px 14px; font-size: 12px; color: var(--secondary-text-color); flex-wrap: wrap; }
+  .c-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+  /* Prototypväljare – inte en del av designen */
+  .switcher { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; background: #000; color: #fff; border-radius: 999px; padding: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.35); font: 600 14px/1 system-ui, sans-serif; z-index: 10; }
+  .switcher button { background: #333; color: #fff; border: 0; border-radius: 999px; width: 40px; height: 40px; font-size: 18px; }
+  .switcher .label { padding: 0 12px; white-space: nowrap; }
+  .state { max-width: 440px; margin: 16px auto 0; font: 12px/1.4 ui-monospace, monospace; color: var(--secondary-text-color); white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="toolbar" role="group" aria-label="Prototypkontroller">
+  <span>Tema:</span>
+  <button data-theme-btn="light">Ljust</button>
+  <button data-theme-btn="dark">Mörkt</button>
+  <span style="margin-left:8px">Tid:</span>
+  <button data-speed="1">1×</button>
+  <button data-speed="10">10×</button>
+  <button data-speed="60">60×</button>
+</div>
+
+<main class="dash">
+  <div class="ha-card"><div class="fake"><span>🌡️ Ute</span><span>6,4 °C · regn</span></div></div>
+  <div class="ha-card" id="card"></div>
+  <div class="ha-card"><div class="fake"><span>💡 Hallen</span><span>Av</span></div></div>
+</main>
+<div class="state" id="state"></div>
+
+<nav class="switcher" aria-label="Byt prototypvariant">
+  <button id="prev" aria-label="Föregående variant">←</button>
+  <span class="label" id="vlabel"></span>
+  <button id="next" aria-label="Nästa variant">→</button>
+</nav>
+
+<script>
+// Låtsasdata i samma form som sensorattributen från #4. Tider räknas från sidans start.
+const TIMING = { walk: 270, run: 120, window: 300 };
+const BAR_FULL = TIMING.walk + TIMING.window + 300; // stapeln full vid 12,5 min kvar
+const t0 = Date.now();
+let speed = 1, simStart = Date.now(), simOffset = 0;
+const nowMs = () => t0 + simOffset + (Date.now() - simStart) * speed;
+
+const lines = [
+  { line: "10", dest: "Ort A", color: "#1565c0", deps: [[9*60+10, 120, true], [24*60, 0, false], [39*60, 0, false]] },
+  { line: "20", dest: "Ort B", color: "#6a1b9a", deps: [[3*60+30, 45, true], [18*60, 0, false], [33*60, 0, false]] },
+  { line: "40", dest: "Ort C", color: "#2e7d32", deps: [[14*60, 0, false], [29*60, 0, false], [44*60, 0, false]] },
+].map(l => ({ ...l, deps: l.deps.map(([s, delay, live]) => ({ expected: t0 + s*1000, delay, live })) }));
+
+function zoneFor(left) {
+  if (left > TIMING.walk + TIMING.window) return "plenty";
+  if (left >= TIMING.walk) return "go";
+  if (left >= TIMING.run) return "run";
+  return null;
+}
+const ZONE_TEXT = { plenty: "Gott om tid", go: "Nu passar det att gå", run: "Spring!", none: "Ingen buss att hinna" };
+const clock = ms => new Date(ms).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+
+function assess(l) {
+  const now = nowMs();
+  // Fyll på nya avgångar så att simuleringen aldrig tar slut.
+  while (l.deps.length < 3) l.deps.push({ expected: l.deps.at(-1).expected + 15*60*1000, delay: 0, live: false });
+  const idx = l.deps.findIndex(d => zoneFor((d.expected - now) / 1000));
+  if (idx > 0) l.deps.splice(0, idx);
+  const d = l.deps[0], left = (d.expected - now) / 1000;
+  return { ...l, dep: d, left, zone: zoneFor(left) || "none", following: l.deps[1] };
+}
+
+function goIn(a) { return Math.max(0, Math.floor((a.left - TIMING.walk) / 60)); }
+function delayText(d) {
+  const m = Math.floor(d.delay / 60 + 0.5);
+  return m > 0 ? `<span class="late">+${m}</span>` : m < 0 ? `<span class="early">${m}</span>` : "";
+}
+const rt = d => `<span class="rt ${d.live ? "live" : ""}">${d.live ? "realtid" : "tidtabell"}</span>`;
+
+const variants = {
+  N1: { name: "Nästa: under destinationen", render(as) {
+    return `<div class="title">Bussar</div>` + as.map(a => a2row(a, `<span class="a-dest">${a.dest}<span class="n-sub">sedan ${clock(a.following.expected)}</span></span>`)).join("");
+  }},
+  N2: { name: "Nästa: efter klockslaget", render(as) {
+    return `<div class="title">Bussar</div>` + as.map(a => a2row(a, `<span class="a-dest">${a.dest}</span>`, ` · ${clock(a.following.expected)}`)).join("");
+  }},
+  N3: { name: "Nästa: tryck på raden", render(as) {
+    return `<div class="title">Bussar</div>` + as.map(a => {
+      const open = expanded.has(a.line);
+      return a2row(a, `<span class="a-dest">${a.dest}<span class="n-chev">${open ? "▲" : "▼"}</span></span>`, "",
+        open ? `<div class="n-more">Nästa: ${clock(a.following.expected)} (om ${Math.floor((a.following.expected - nowMs()) / 60000)} min)</div>` : "", `data-toggle="${a.line}"`);
+    }).join("");
+  }},
+  A2: { name: "A2 utan nästa buss (förra valet)", render(as) {
+    return `<div class="title">Bussar</div>` + as.map(a => a2row(a, `<span class="a-dest">${a.dest}</span>`)).join("");
+  }},
+};
+
+const expanded = new Set();
+document.addEventListener("click", e => {
+  const row = e.target.closest("[data-toggle]");
+  if (!row) return;
+  const l = row.dataset.toggle;
+  expanded.has(l) ? expanded.delete(l) : expanded.add(l);
+  render();
+});
+function a2row(a, destHtml, afterTime = "", extra = "", attrs = "") {
+  const fill = Math.max(0, Math.min(1, (a.left - TIMING.run) / (BAR_FULL - TIMING.run)));
+  return `<div class="a-row zone-${a.zone} ${attrs ? "n-row" : ""}" ${attrs}>
+    <span class="badge" style="background:${a.color}">${a.line}</span>
+    ${destHtml}
+    <span class="a2-right"><span class="a-min">${a.dep.live ? '<span class="live-dot" title="realtid"></span>' : ""}${Math.floor(a.left / 60)} min</span><span class="a2-time">${clock(a.dep.expected)} ${delayText(a.dep)}${afterTime}</span></span>
+    <div class="a-bar" role="img" aria-label="${ZONE_TEXT[a.zone]}"><div style="width:${(fill*100).toFixed(1)}%"></div></div>
+    ${extra}
+  </div>`;
+}
+const keys = Object.keys(variants);
+let current = new URLSearchParams(location.search).get("variant");
+if (!keys.includes(current)) current = "N1";
+
+function setVariant(v) {
+  current = v;
+  const u = new URL(location.href); u.searchParams.set("variant", v); history.replaceState(null, "", u);
+  render();
+}
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll("[data-theme-btn]").forEach(b => b.setAttribute("aria-pressed", b.dataset.themeBtn === t));
+}
+function setSpeed(s) {
+  simOffset += (Date.now() - simStart) * speed; simStart = Date.now(); speed = s;
+  document.querySelectorAll("[data-speed]").forEach(b => b.setAttribute("aria-pressed", Number(b.dataset.speed) === s));
+}
+function render() {
+  const as = lines.map(assess);
+  document.getElementById("card").innerHTML = variants[current].render(as);
+  document.getElementById("vlabel").textContent = `${current} (${variants[current].name})`;
+  document.getElementById("state").textContent = "State: " + JSON.stringify(as.map(a => ({
+    line: a.line, zone: a.zone, kvar_s: Math.round(a.left), avgang: clock(a.dep.expected), sedan: clock(a.following.expected),
+  })));
+}
+document.getElementById("prev").onclick = () => setVariant(keys[(keys.indexOf(current) + keys.length - 1) % keys.length]);
+document.getElementById("next").onclick = () => setVariant(keys[(keys.indexOf(current) + 1) % keys.length]);
+addEventListener("keydown", e => {
+  if (e.target.closest("input, textarea, [contenteditable]")) return;
+  if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+document.querySelectorAll("[data-theme-btn]").forEach(b => b.onclick = () => setTheme(b.dataset.themeBtn));
+document.querySelectorAll("[data-speed]").forEach(b => b.onclick = () => setSpeed(Number(b.dataset.speed)));
+setTheme(matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+setSpeed(1);
+render();
+setInterval(render, 1000);
+</script>
+</body>
+</html>
