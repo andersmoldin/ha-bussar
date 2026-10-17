@@ -15,6 +15,9 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -25,13 +28,17 @@ from .api import TrafiklabAuthError, TrafiklabError, client_for
 from .const import (
     CONF_LINE,
     CONF_PLATFORM,
+    CONF_RUN_MINUTES,
     CONF_STOP_ID,
     CONF_STOP_NAME,
+    CONF_WALK_MINUTES,
+    CONF_WINDOW_MINUTES,
     DOMAIN,
     SUBENTRY_LINE,
 )
 from .departures import WatchedLine, line_choices, parse_departures
 from .schema import vol
+from .zones import DEFAULT_TIMING
 
 # Godtycklig sökning som bara används för att pröva nyckeln.
 KEY_PROBE_QUERY = "Stockholm"
@@ -101,6 +108,33 @@ class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reauth_confirm", data_schema=API_KEY_SCHEMA, errors=errors
         )
+
+
+def _minutes_selector(minimum: float) -> NumberSelector:
+    return NumberSelector(
+        NumberSelectorConfig(
+            min=minimum, max=60, step=0.5, unit_of_measurement="min", mode=NumberSelectorMode.BOX
+        )
+    )
+
+
+def _timing_schema(current: Mapping[str, Any]) -> Any:
+    shown = DEFAULT_TIMING.as_minutes() | {
+        k: current[k]
+        for k in (CONF_WALK_MINUTES, CONF_RUN_MINUTES, CONF_WINDOW_MINUTES)
+        if k in current
+    }
+    return vol.Schema(
+        {
+            vol.Required(CONF_WALK_MINUTES, default=shown[CONF_WALK_MINUTES]): _minutes_selector(
+                0.5
+            ),
+            vol.Required(CONF_RUN_MINUTES, default=shown[CONF_RUN_MINUTES]): _minutes_selector(0.5),
+            vol.Required(
+                CONF_WINDOW_MINUTES, default=shown[CONF_WINDOW_MINUTES]
+            ): _minutes_selector(0),
+        }
+    )
 
 
 class LineSubentryFlow(ConfigSubentryFlow):
@@ -197,4 +231,23 @@ class LineSubentryFlow(ConfigSubentryFlow):
                 CONF_LINE: watched.line,
                 CONF_PLATFORM: watched.platform,
             },
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Ändra gångtid, springtid och fönster för en bevakad linje."""
+        subentry = self._get_reconfigure_subentry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if user_input[CONF_RUN_MINUTES] > user_input[CONF_WALK_MINUTES]:
+                errors["base"] = "run_longer_than_walk"
+            else:
+                return self.async_update_and_abort(
+                    self._get_entry(), subentry, data_updates=user_input
+                )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_timing_schema(user_input or subentry.data),
+            errors=errors,
         )

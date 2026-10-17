@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Avgångs-API:t cachar i 60 s, så tätare anrop ger inget.
 UPDATE_INTERVAL = timedelta(seconds=60)
-# Inga anrop nattetid, för att hålla nere kvoten.
+# Inga anrop nattetid när data redan finns, för att hålla nere kvoten.
 QUIET_START = time(23, 0)
 QUIET_END = time(5, 0)
 
@@ -48,7 +48,7 @@ class StopCoordinator(DataUpdateCoordinator[list[Departure] | None]):
         self.stop_id = stop_id
 
     async def _async_update_data(self) -> list[Departure] | None:
-        if is_quiet(dt_util.now()):
+        if self.data is not None and is_quiet(dt_util.now()):
             # Räkna vidare på senaste datan i stället för att hämta.
             return self.data
         try:

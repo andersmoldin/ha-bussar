@@ -28,7 +28,8 @@
   "config_subentries": {
     "line": {
       "initiate_flow": {
-        "user": "Add watched line"
+        "user": "Add watched line",
+        "reconfigure": "Change walking times"
       },
       "entry_type": "Watched line",
       "step": {
@@ -58,16 +59,27 @@
             "line": "Line",
             "platform": "Platform"
           }
+        },
+        "reconfigure": {
+          "title": "Walking times",
+          "description": "Minutes from your door to the stop. The window is how long the gauge shows 'time to go'.",
+          "data": {
+            "walk_minutes": "Walking time",
+            "run_minutes": "Running time",
+            "window_minutes": "Window"
+          }
         }
       },
       "error": {
         "cannot_connect": "Could not reach Trafiklab.",
         "no_stops": "No stops found.",
-        "missing_line_or_platform": "Enter both line and platform."
+        "missing_line_or_platform": "Enter both line and platform.",
+        "run_longer_than_walk": "Running time cannot be longer than walking time."
       },
       "abort": {
         "cannot_connect": "Could not reach Trafiklab.",
-        "already_configured": "That line and platform is already watched."
+        "already_configured": "That line and platform is already watched.",
+        "reconfigure_successful": "Walking times updated."
       }
     }
   }

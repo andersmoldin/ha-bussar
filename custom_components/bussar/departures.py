@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -26,6 +27,9 @@ class WatchedLine:
         line, platform = key.split("|", 1)
         return cls(line, platform)
 
+    def matches(self, departure: Departure) -> bool:
+        return departure.line == self.line and departure.platform == self.platform
+
     def sort_key(self) -> tuple[bool, int, str, str]:
         # Numeriska linjer först, i nummerordning.
         numeric = self.line.isdigit()
@@ -41,6 +45,11 @@ class Departure:
     expected: datetime
     is_realtime: bool
     canceled: bool
+
+    @property
+    def delay_minutes(self) -> int:
+        """Försening i hela minuter, avrundat till närmaste med halva minuter uppåt."""
+        return math.floor((self.expected - self.scheduled).total_seconds() / 60 + 0.5)
 
 
 def _parse_time(value: str) -> datetime:
@@ -72,14 +81,7 @@ def upcoming(
     departures: list[Departure], watched: WatchedLine, *, now: datetime
 ) -> list[Departure]:
     return sorted(
-        (
-            d
-            for d in departures
-            if d.line == watched.line
-            and d.platform == watched.platform
-            and not d.canceled
-            and d.expected >= now
-        ),
+        (d for d in departures if watched.matches(d) and not d.canceled and d.expected >= now),
         key=lambda d: d.expected,
     )
 
