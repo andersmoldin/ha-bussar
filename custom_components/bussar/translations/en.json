@@ -62,7 +62,7 @@
         },
         "reconfigure": {
           "title": "Walking times",
-          "description": "Minutes from your door to the stop. The window is how long before 'time to go' the gauge turns yellow.",
+          "description": "Minutes from your door to the stop. The window is how long the gauge shows 'time to go'.",
           "data": {
             "walk_minutes": "Walking time",
             "run_minutes": "Running time",

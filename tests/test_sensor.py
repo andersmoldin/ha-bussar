@@ -230,3 +230,86 @@ async def test_zone_go_when_departure_is_within_walk_time_plus_window(
     assert attrs["zone"] == "go"
     assert attrs["is_realtime"] is True
     assert attrs["delay_minutes"] == 0
+
+
+async def test_zone_changes_at_the_boundary_without_waiting_for_new_data(
+    hass: HomeAssistant, entry, aioclient_mock, freezer
+):
+    # Linje 10 läge A, bussen 19:59:29: gott om tid 19:49:30, gå nu från 19:49:59.
+    freezer.move_to(datetime(2026, 10, 17, 19, 49, 30, tzinfo=STOCKHOLM))
+    await _setup(hass, entry)
+    assert _state(hass, entry, "10", "A").attributes["zone"] == "plenty"
+
+    freezer.move_to(datetime(2026, 10, 17, 19, 50, 0, tzinfo=STOCKHOLM))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert aioclient_mock.call_count == 2
+    assert _state(hass, entry, "10", "A").attributes["zone"] == "go"
+
+
+async def test_canceled_departure_is_listed_and_the_next_bus_shown(
+    hass: HomeAssistant, aioclient_mock, freezer
+):
+    await hass.config.async_set_time_zone("Europe/Stockholm")
+    payload = load_fixture("departures-stop-a.json")
+    for dep in payload["departures"]:
+        if dep["route"]["designation"] == "10" and dep["scheduled"].endswith("19:59:29"):
+            dep["canceled"] = True
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", json=payload)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: "secret"},
+        subentries_data=[_line(STOP_A_ID, "Hållplats A", "10", "A")],
+    )
+    freezer.move_to(RECORDED_AT)
+
+    await _setup(hass, entry)
+
+    attrs = _state(hass, entry, "10", "A").attributes
+    assert attrs["departure_time"] == "20:14"
+    assert attrs["canceled"] == ["19:59"]
+
+
+async def test_attributes_keep_their_keys_when_no_bus_can_be_caught(
+    hass: HomeAssistant, aioclient_mock, freezer
+):
+    await hass.config.async_set_time_zone("Europe/Stockholm")
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", json=load_fixture("departures-stop-a.json"))
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: "secret"},
+        subentries_data=[_line(STOP_A_ID, "Hållplats A", "30", "B")],
+    )
+    # Linje 30 läge B har bara en avgång, 20:27:40. 100 s före går den inte att hinna.
+    freezer.move_to(datetime(2026, 10, 17, 20, 26, 0, tzinfo=STOCKHOLM))
+
+    await _setup(hass, entry)
+
+    state = _state(hass, entry, "30", "B")
+    assert state.state == STATE_UNKNOWN
+    assert state.attributes["zone"] is None
+    assert state.attributes["following_expected"] is None
+    assert state.attributes["canceled"] == []
+
+
+async def test_changed_walking_time_is_used_by_the_sensor(hass: HomeAssistant, entry, freezer):
+    from homeassistant import config_entries
+
+    freezer.move_to(RECORDED_AT)
+    await _setup(hass, entry)
+    subentry_id = next(sid for sid, sub in entry.subentries.items() if sub.data[CONF_LINE] == "10")
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "line"),
+        context={"source": config_entries.SOURCE_RECONFIGURE, "subentry_id": subentry_id},
+    )
+    await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"walk_minutes": 12, "run_minutes": 2, "window_minutes": 5}
+    )
+    await hass.async_block_till_done()
+
+    # 953 s kvar till 19:59:29 är inom 12 + 5 min.
+    attrs = _state(hass, entry, "10", "A").attributes
+    assert attrs["zone"] == "go"
+    assert attrs["walk_seconds"] == 720

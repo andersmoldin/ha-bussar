@@ -13,14 +13,14 @@ Varje bevakad linje blir en sensor med minuter till nästa buss **som går att h
 
 | Attribut | Betydelse |
 |---|---|
-| `zone` | `plenty` (gott om tid), `go` (nu passar det att gå) eller `run` (du hinner om du springer) |
+| `zone` | `plenty` (gott om tid), `go` (nu passar det att gå) eller `run` (du hinner om du springer). Exakt på gångtiden räknas som `go`. `null` när ingen buss går att hinna. |
 | `departure_time`, `expected`, `scheduled` | Klockslag samt förväntad och planerad tid (ISO) |
-| `delay_minutes`, `is_realtime` | Försening i hela minuter, och om tiden är realtid eller tidtabell |
-| `canceled` | Inställda turer (planerad tid) som hoppades över |
+| `delay_minutes`, `is_realtime` | Försening i hela minuter (halva uppåt, negativ om bussen är tidig), och om tiden är realtid eller tidtabell |
+| `canceled` | Kommande inställda turer på linjen (planerad tid) |
 | `following_departure_time`, `following_expected` | Bussen efter |
 | `walk_seconds`, `run_seconds`, `window_seconds` | Zongränserna, så att ett kort kan räkna ner själv |
 
-Gångtid (4,5 min), springtid (2 min) och fönster (5 min) ändras per linje via **⋮ → Ändra gångtider** på den bevakade linjen.
+Sensorn skrivs om vid varje minutbyte och zongräns, även mellan hämtningarna. Gångtid (4,5 min), springtid (2 min) och fönster (5 min) ändras per linje via **⋮ → Ändra gångtider** på den bevakade linjen.
 
 ## Kvoter
 

@@ -110,49 +110,35 @@ class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-def _minutes() -> NumberSelector:
+def _minutes_selector(minimum: float) -> NumberSelector:
     return NumberSelector(
         NumberSelectorConfig(
-            min=0, max=60, step=0.5, unit_of_measurement="min", mode=NumberSelectorMode.BOX
+            min=minimum, max=60, step=0.5, unit_of_measurement="min", mode=NumberSelectorMode.BOX
         )
     )
 
 
 def _timing_schema(current: Mapping[str, Any]) -> Any:
-    defaults = {
-        CONF_WALK_MINUTES: DEFAULT_TIMING.walk.total_seconds() / 60,
-        CONF_RUN_MINUTES: DEFAULT_TIMING.run.total_seconds() / 60,
-        CONF_WINDOW_MINUTES: DEFAULT_TIMING.window.total_seconds() / 60,
+    shown = DEFAULT_TIMING.as_minutes() | {
+        k: current[k]
+        for k in (CONF_WALK_MINUTES, CONF_RUN_MINUTES, CONF_WINDOW_MINUTES)
+        if k in current
     }
     return vol.Schema(
         {
-            vol.Required(key, default=current.get(key, default)): _minutes()
-            for key, default in defaults.items()
+            vol.Required(CONF_WALK_MINUTES, default=shown[CONF_WALK_MINUTES]): _minutes_selector(
+                0.5
+            ),
+            vol.Required(CONF_RUN_MINUTES, default=shown[CONF_RUN_MINUTES]): _minutes_selector(0.5),
+            vol.Required(
+                CONF_WINDOW_MINUTES, default=shown[CONF_WINDOW_MINUTES]
+            ): _minutes_selector(0),
         }
     )
 
 
 class LineSubentryFlow(ConfigSubentryFlow):
     """Lägg till en bevakad linje: hållplats, linje och läge."""
-
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Ändra gångtid, springtid och fönster för en bevakad linje."""
-        subentry = self._get_reconfigure_subentry()
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            if user_input[CONF_RUN_MINUTES] > user_input[CONF_WALK_MINUTES]:
-                errors["base"] = "run_longer_than_walk"
-            else:
-                return self.async_update_and_abort(
-                    self._get_entry(), subentry, data_updates=user_input
-                )
-        return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=_timing_schema(user_input or subentry.data),
-            errors=errors,
-        )
 
     def __init__(self) -> None:
         self._stops: dict[str, str] = {}
@@ -245,4 +231,23 @@ class LineSubentryFlow(ConfigSubentryFlow):
                 CONF_LINE: watched.line,
                 CONF_PLATFORM: watched.platform,
             },
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Ändra gångtid, springtid och fönster för en bevakad linje."""
+        subentry = self._get_reconfigure_subentry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if user_input[CONF_RUN_MINUTES] > user_input[CONF_WALK_MINUTES]:
+                errors["base"] = "run_longer_than_walk"
+            else:
+                return self.async_update_and_abort(
+                    self._get_entry(), subentry, data_updates=user_input
+                )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_timing_schema(user_input or subentry.data),
+            errors=errors,
         )
