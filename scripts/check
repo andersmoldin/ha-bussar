@@ -25,7 +25,8 @@ PY=$(find_python)
 
 case "${1:-}" in
   test)
-    exec "$PY" -m pytest -q -p no:cacheprovider
+    "$PY" -m pytest -q -p no:cacheprovider
+    exec node --test tests/js/*.test.mjs
     ;;
   lint)
     "$PY" -m ruff check custom_components tests scripts
