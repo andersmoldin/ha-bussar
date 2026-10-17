@@ -53,7 +53,7 @@
         },
         "manual": {
           "title": "Ange linje och läge",
-          "description": "Inga avgångar närmaste timmen, så ange linje och läge själv.",
+          "description": "Ange linje och läge själv, t.ex. för en linje utan avgångar närmaste timmen.",
           "data": {
             "line": "Linje",
             "platform": "Läge"
@@ -62,7 +62,8 @@
       },
       "error": {
         "cannot_connect": "Kunde inte nå Trafiklab.",
-        "no_stops": "Inga hållplatser hittades."
+        "no_stops": "Inga hållplatser hittades.",
+        "missing_line_or_platform": "Ange både linje och läge."
       },
       "abort": {
         "cannot_connect": "Kunde inte nå Trafiklab.",

@@ -37,6 +37,8 @@ from .schema import vol
 KEY_PROBE_QUERY = "Stockholm"
 CONF_QUERY = "query"
 CONF_LINE_PLATFORM = "line_platform"
+# Valet för en linje som inte syns bland de kommande avgångarna.
+OTHER_LINE = "other"
 
 API_KEY_SCHEMA = vol.Schema({vol.Required(CONF_API_KEY): str})
 
@@ -139,6 +141,8 @@ class LineSubentryFlow(ConfigSubentryFlow):
     async def async_step_line(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         assert self._stop_id is not None
         if user_input is not None:
+            if user_input[CONF_LINE_PLATFORM] == OTHER_LINE:
+                return await self.async_step_manual()
             return self._create(WatchedLine.parse(user_input[CONF_LINE_PLATFORM]))
         try:
             choices = line_choices(parse_departures(await self._client().departures(self._stop_id)))
@@ -154,6 +158,7 @@ class LineSubentryFlow(ConfigSubentryFlow):
             )
             for watched, destinations in choices.items()
         ]
+        options.append(SelectOptionDict(value=OTHER_LINE, label="Annan linje…"))
         return self.async_show_form(
             step_id="line", data_schema=_pick_one(CONF_LINE_PLATFORM, options)
         )
@@ -161,15 +166,20 @@ class LineSubentryFlow(ConfigSubentryFlow):
     async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self._create(
-                WatchedLine(user_input[CONF_LINE].strip(), user_input[CONF_PLATFORM].strip())
+            watched = WatchedLine(
+                user_input[CONF_LINE].strip(), user_input[CONF_PLATFORM].strip().upper()
             )
+            if watched.line and watched.platform:
+                return self._create(watched)
+            errors["base"] = "missing_line_or_platform"
         return self.async_show_form(
             step_id="manual",
             data_schema=vol.Schema(
                 {vol.Required(CONF_LINE): str, vol.Required(CONF_PLATFORM): str}
             ),
+            errors=errors,
         )
 
     def _create(self, watched: WatchedLine) -> SubentryFlowResult:

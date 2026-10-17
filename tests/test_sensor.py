@@ -1,16 +1,20 @@
+import logging
 from datetime import datetime, timedelta
 from types import MappingProxyType
 from zoneinfo import ZoneInfo
 
 import pytest
-from homeassistant.config_entries import ConfigSubentry, ConfigSubentryData
+from aiohttp import ContentTypeError, RequestInfo
+from homeassistant.config_entries import ConfigEntryState, ConfigSubentry, ConfigSubentryData
 from homeassistant.const import CONF_API_KEY, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from multidict import CIMultiDict, CIMultiDictProxy
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
 )
+from yarl import URL
 
 from custom_components.bussar.const import (
     CONF_LINE,
@@ -169,3 +173,28 @@ async def test_watched_line_added_later_gets_a_sensor_without_restart(
     await hass.async_block_till_done()
 
     assert _state(hass, entry, "30", "B").state == "44"
+
+
+async def test_api_key_is_not_logged_when_trafiklab_answers_with_html(
+    hass: HomeAssistant, aioclient_mock, caplog
+):
+    caplog.set_level(logging.DEBUG)
+    url = URL(f"{DEPARTURES_URL}{STOP_A_ID}?key=topsecret")
+    request = RequestInfo(url, "GET", CIMultiDictProxy(CIMultiDict()), url)
+    aioclient_mock.get(
+        f"{DEPARTURES_URL}{STOP_A_ID}",
+        exc=ContentTypeError(request, (), status=200, message="unexpected mimetype: text/html"),
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: "topsecret"},
+        subentries_data=[_line(STOP_A_ID, "Hållplats A", "10", "A")],
+    )
+    entry.add_to_hass(hass)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert "ContentTypeError" in caplog.text
+    assert "topsecret" not in caplog.text

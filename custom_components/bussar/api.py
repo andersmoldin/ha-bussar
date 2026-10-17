@@ -48,8 +48,8 @@ class TrafiklabClient:
                 if resp.status != 200:
                     raise TrafiklabError(f"HTTP {resp.status}")
                 return await resp.json()
-        except (aiohttp.ClientError, TimeoutError) as err:
-            raise TrafiklabError(str(err)) from err
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+            raise TrafiklabError(type(err).__name__) from None
 
 
 def client_for(hass, api_key: str) -> TrafiklabClient:

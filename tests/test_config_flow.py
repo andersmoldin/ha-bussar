@@ -166,3 +166,81 @@ async def test_reauth_replaces_api_key(hass: HomeAssistant, aioclient_mock):
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_API_KEY] == "new"
+
+
+async def test_unreadable_response_shows_cannot_connect(hass: HomeAssistant, aioclient_mock):
+    aioclient_mock.get(f"{STOP_LOOKUP_URL}Stockholm", text="<html>Underhåll</html>")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: "secret"}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_line_not_among_upcoming_departures_can_be_entered_manually(
+    hass: HomeAssistant, aioclient_mock
+):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "secret"})
+    entry.add_to_hass(hass)
+
+    result = await _start_line_flow(
+        hass, entry, aioclient_mock, load_fixture("departures-stop-a.json")
+    )
+    other = _select_options(result, "line_platform")[-1]
+    assert other["label"] == "Annan linje…"
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"line_platform": other["value"]}
+    )
+    assert result["step_id"] == "manual"
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_LINE: " 107 ", CONF_PLATFORM: " b "}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    subentry = next(iter(entry.subentries.values()))
+    assert (subentry.data[CONF_LINE], subentry.data[CONF_PLATFORM]) == ("107", "B")
+    assert subentry.title == "107 läge B, Hållplats A (Ort)"
+
+
+async def test_manual_entry_of_watched_line_in_other_case_is_a_duplicate(
+    hass: HomeAssistant, aioclient_mock
+):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "secret"})
+    entry.add_to_hass(hass)
+    payload = load_fixture("departures-stop-a.json")
+    result = await _start_line_flow(hass, entry, aioclient_mock, payload)
+    await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"line_platform": "10|A"}
+    )
+
+    result = await _start_line_flow(hass, entry, aioclient_mock, payload)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"line_platform": _select_options(result, "line_platform")[-1]["value"]}
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_LINE: "10", CONF_PLATFORM: "a"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert len(entry.subentries) == 1
+
+
+async def test_manual_entry_requires_both_line_and_platform(hass: HomeAssistant, aioclient_mock):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_API_KEY: "secret"})
+    entry.add_to_hass(hass)
+
+    result = await _start_line_flow(hass, entry, aioclient_mock, {"departures": []})
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_LINE: "107", CONF_PLATFORM: "  "}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "manual"
+    assert result["errors"] == {"base": "missing_line_or_platform"}
+    assert not entry.subentries
