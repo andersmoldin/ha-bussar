@@ -1,0 +1,4 @@
+pytest-homeassistant-custom-component
+gtfs-realtime-bindings
+mypy
+ruff

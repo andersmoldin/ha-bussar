@@ -10,7 +10,7 @@ All konfiguration görs i HA:s UI (config flow). Den finns inte i repot.
 
 - Hållplats (sök via Trafiklab Stop Lookup; använd `stop_groups[].id`)
 - Linje
-- Riktning, angiven som en delsträng av destinationen (inte exakt match)
+- Riktning, angiven som hållplatsläge (t.ex. "A"). Varje riktning har ett eget läge, medan destinationen kan variera mellan turer i samma riktning (se `docs/data-findings.md`). Config flow visar kommande avgångar med läge och destination så att rätt läge är lätt att välja.
 - Gångtid och springtid till hållplatsen
 
 Användarens egna hållplatser, linjer och riktningar finns i `.local/`, som inte checkas in.
@@ -76,7 +76,6 @@ Mätaren räknar ner lokalt varje sekund och rättar sig när ny data kommer.
 
 ## Senare
 
-- Fler bevakade linjer via UI
 - E-ink-skärm
 - Eventuellt en "gå nu"-notis
 - Fler trafikbolag

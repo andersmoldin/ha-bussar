@@ -1,0 +1,74 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Trafiklab",
+        "description": "API key for Trafiklab Realtime APIs (Bronze is enough).",
+        "data": {
+          "api_key": "API key"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Update API key",
+        "description": "Trafiklab rejected the API key. Enter a new one.",
+        "data": {
+          "api_key": "API key"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid API key.",
+      "cannot_connect": "Could not reach Trafiklab."
+    },
+    "abort": {
+      "single_instance_allowed": "Bussar is already set up. Add more lines on the integration instead.",
+      "reauth_successful": "The API key has been updated."
+    }
+  },
+  "config_subentries": {
+    "line": {
+      "initiate_flow": {
+        "user": "Add watched line"
+      },
+      "entry_type": "Watched line",
+      "step": {
+        "user": {
+          "title": "Find stop",
+          "data": {
+            "query": "Stop name"
+          }
+        },
+        "stop": {
+          "title": "Choose stop",
+          "data": {
+            "stop_id": "Stop"
+          }
+        },
+        "line": {
+          "title": "Choose line and platform",
+          "description": "Each direction has its own platform. The list shows upcoming departures with their destinations.",
+          "data": {
+            "line_platform": "Line and platform"
+          }
+        },
+        "manual": {
+          "title": "Enter line and platform",
+          "description": "Enter line and platform yourself, e.g. for a line with no departures in the next hour.",
+          "data": {
+            "line": "Line",
+            "platform": "Platform"
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Could not reach Trafiklab.",
+        "no_stops": "No stops found.",
+        "missing_line_or_platform": "Enter both line and platform."
+      },
+      "abort": {
+        "cannot_connect": "Could not reach Trafiklab.",
+        "already_configured": "That line and platform is already watched."
+      }
+    }
+  }
+}
