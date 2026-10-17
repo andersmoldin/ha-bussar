@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Trafiklab",
+        "description": "API-nyckel för Trafiklab Realtime APIs (Bronze räcker).",
+        "data": { "api_key": "API-nyckel" }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ogiltig API-nyckel.",
+      "cannot_connect": "Kunde inte nå Trafiklab."
+    }
+  },
+  "config_subentries": {
+    "line": {
+      "initiate_flow": { "user": "Lägg till bevakad linje" },
+      "entry_type": "Bevakad linje",
+      "step": {
+        "user": {
+          "title": "Sök hållplats",
+          "data": { "query": "Hållplatsnamn" }
+        },
+        "stop": {
+          "title": "Välj hållplats",
+          "data": { "stop_id": "Hållplats" }
+        },
+        "line": {
+          "title": "Välj linje och läge",
+          "description": "Varje riktning har ett eget läge. Listan visar kommande avgångar med destination.",
+          "data": { "line_platform": "Linje och läge" }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kunde inte nå Trafiklab.",
+        "no_stops": "Inga hållplatser hittades."
+      },
+      "abort": {
+        "cannot_connect": "Kunde inte nå Trafiklab.",
+        "no_departures": "Inga avgångar närmaste timmen. Försök igen dagtid."
+      }
+    }
+  }
+}

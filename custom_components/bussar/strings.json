@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Trafiklab",
+        "description": "API key for Trafiklab Realtime APIs (Bronze is enough).",
+        "data": { "api_key": "API key" }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid API key.",
+      "cannot_connect": "Could not reach Trafiklab."
+    }
+  },
+  "config_subentries": {
+    "line": {
+      "initiate_flow": { "user": "Add watched line" },
+      "entry_type": "Watched line",
+      "step": {
+        "user": {
+          "title": "Find stop",
+          "data": { "query": "Stop name" }
+        },
+        "stop": {
+          "title": "Choose stop",
+          "data": { "stop_id": "Stop" }
+        },
+        "line": {
+          "title": "Choose line and platform",
+          "description": "Each direction has its own platform. The list shows upcoming departures with their destinations.",
+          "data": { "line_platform": "Line and platform" }
+        }
+      },
+      "error": {
+        "cannot_connect": "Could not reach Trafiklab.",
+        "no_stops": "No stops found."
+      },
+      "abort": {
+        "cannot_connect": "Could not reach Trafiklab.",
+        "no_departures": "No departures in the next hour. Try again during the day."
+      }
+    }
+  }
+}
