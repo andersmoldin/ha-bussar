@@ -32,20 +32,19 @@ def test_canceled_departure_is_skipped(stop_a_payload):
     )
     first_line_10_on_a["canceled"] = True
 
-    result = upcoming(
-        parse_departures(stop_a_payload), line="10", platform="A", now=RECORDED_AT
-    )
+    result = upcoming(parse_departures(stop_a_payload), line="10", platform="A", now=RECORDED_AT)
 
     assert result[0].expected == at(19, 59, 29)
 
 
 def test_departure_already_gone_is_skipped(stop_a_payload):
-    result = upcoming(
-        parse_departures(stop_a_payload), line="10", platform="A", now=at(19, 45, 0)
-    )
+    result = upcoming(parse_departures(stop_a_payload), line="10", platform="A", now=at(19, 45, 0))
 
     assert result[0].expected == at(19, 59, 29)
 
 
 def test_no_departures_gives_empty_list():
-    assert upcoming(parse_departures({"departures": []}), line="10", platform="A", now=RECORDED_AT) == []
+    assert (
+        upcoming(parse_departures({"departures": []}), line="10", platform="A", now=RECORDED_AT)
+        == []
+    )
