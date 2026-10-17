@@ -15,6 +15,7 @@ Varje bevakad linje blir en sensor med minuter till nästa buss **som går att h
 |---|---|
 | `zone` | `plenty` (gott om tid), `go` (nu passar det att gå) eller `run` (du hinner om du springer). Exakt på gångtiden räknas som `go`. `null` när ingen buss går att hinna. |
 | `departure_time`, `expected`, `scheduled` | Klockslag samt förväntad och planerad tid (ISO) |
+| `line`, `platform`, `destination` | Linje, hållplatsläge och bussens destination |
 | `delay_minutes`, `is_realtime` | Försening i hela minuter (halva uppåt, negativ om bussen är tidig), och om tiden är realtid eller tidtabell |
 | `canceled` | Kommande inställda turer på linjen (planerad tid) |
 | `following_departure_time`, `following_expected` | Bussen efter |
