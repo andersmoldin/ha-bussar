@@ -47,7 +47,7 @@ En hållplats hämtas en gång per minut, delat mellan alla linjer där, och ing
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -r requirements_test.txt
-.venv/bin/python -m pytest
+scripts/check test   # pytest och node --test tests/js/*.test.mjs
 ```
 
 Se `SPEC.md` och `docs/data-findings.md`.
