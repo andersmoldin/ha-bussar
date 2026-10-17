@@ -33,11 +33,11 @@
   const hass = {
     config: { time_zone: "Europe/Stockholm" },
     states: {
-      "sensor.linje_3": sensor("3", "Centrum", 1000, 1900, { delay_minutes: 2, is_realtime: true }),
-      "sensor.linje_11": sensor("11", "Centralstationen", 500, 1400, { is_realtime: true, delay_minutes: -1 }),
-      "sensor.linje_7": sensor("7", "Centrum", 200, 1100),
-      "sensor.linje_107": sensor("107", "Ort", 0, null, { expected: null }),
-      "sensor.otillganglig": { state: "unavailable", attributes: {} },
+      "sensor.linje_10": sensor("10", "Ort A", 1000, 1900, { delay_minutes: 2, is_realtime: true }),
+      "sensor.linje_20": sensor("20", "Ort B", 500, 1400, { is_realtime: true, delay_minutes: -1 }),
+      "sensor.linje_40": sensor("40", "Ort C", 200, 1100),
+      "sensor.linje_30": sensor("30", "Ort D", 0, null, { expected: null }),
+      "sensor.otillganglig": { state: "unavailable", attributes: { friendly_name: "50 läge A, Hållplats A" } },
     },
   };
   const card = document.querySelector("bussar-card");

@@ -31,8 +31,8 @@ Integrationen laddar kortet själv, så ingen resurs behöver läggas till. Redi
 type: custom:bussar-card
 title: Bussar
 entities:
-  - sensor.3_lage_a_hallplats
-  - sensor.7_lage_a_hallplats
+  - sensor.10_lage_a_hallplats_a
+  - sensor.40_lage_a_hallplats_b
 ```
 
 Varje rad visar linje och destination med aktuell avgång under (`23:40 +2`), och till höger minuter kvar med nästa buss under (`sedan 23:55`). Stapeln töms mot springgränsen och är grön (gott om tid), gul (nu passar det att gå) eller orange (spring). En pulserande grön punkt betyder realtid. Kortet räknar ner varje sekund och byter till nästa buss vid springgränsen.

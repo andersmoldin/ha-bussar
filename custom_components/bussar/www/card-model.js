@@ -19,12 +19,17 @@ function clockIn(ms, timeZone) {
 
 const EMPTY = { minutes: null, zone: null, fill: 0, clock: null, delay: null, live: null, followingClock: null };
 
+// HA skickar inga extra attribut för en otillgänglig entitet, bara friendly_name,
+// som är titeln "<linje> läge <läge>, <hållplats>".
+function unavailableRow(name) {
+  const line = name?.match(/^(.+?) läge /)?.[1] ?? null;
+  const destination = name ? `${name} – ej tillgänglig` : "Ej tillgänglig";
+  return { line, destination, ...EMPTY };
+}
+
 export function rowModel(stateObj, nowMs, timeZone) {
-  const attrs = stateObj.attributes ?? {};
-  if (stateObj.state === "unavailable") {
-    return { line: attrs.line ?? null, destination: null, unavailable: true, ...EMPTY };
-  }
-  const a = attrs;
+  const a = stateObj.attributes ?? {};
+  if (stateObj.state === "unavailable") return unavailableRow(a.friendly_name);
   const timing = { walk: a.walk_seconds, run: a.run_seconds, window: a.window_seconds };
   let expected = a.expected ? Date.parse(a.expected) : null;
   let following = a.following_expected ? Date.parse(a.following_expected) : null;
@@ -40,7 +45,7 @@ export function rowModel(stateObj, nowMs, timeZone) {
     live = null;
   }
 
-  const base = { line: a.line, destination: a.destination ?? null, unavailable: false };
+  const base = { line: a.line, destination: a.destination ?? null };
   if (expected === null) {
     return { ...base, ...EMPTY };
   }

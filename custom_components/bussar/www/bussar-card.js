@@ -87,7 +87,7 @@ class Row {
   _show(row) {
     this.el.className = `row ${row.zone ?? ""}`;
     this.badge.textContent = row.line ?? "?";
-    this.dest.textContent = row.unavailable ? "Ej tillgänglig" : (row.destination ?? "");
+    this.dest.textContent = row.destination ?? "";
     this.live.hidden = !row.live;
     this.minutes.textContent = row.minutes === null || row.minutes === undefined ? "–" : `${row.minutes} min`;
     this.now.replaceChildren(...(row.clock ? [row.clock, ...this._delay(row.delay)] : []));
@@ -135,9 +135,9 @@ class BussarCard extends HTMLElement {
   }
 
   static getStubConfig(hass) {
-    // Bussar-sensorer känns igen på zongränserna som sensorn exponerar.
+    // Bussar-sensorer känns igen på plattformen i entitetsregistret, även när de är otillgängliga.
     const entities = Object.keys(hass.states).filter(
-      (id) => id.startsWith("sensor.") && hass.states[id].attributes.walk_seconds !== undefined,
+      (id) => id.startsWith("sensor.") && hass.entities?.[id]?.platform === "bussar",
     );
     return { title: "Bussar", entities };
   }

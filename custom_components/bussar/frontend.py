@@ -31,5 +31,6 @@ async def async_register_card(hass: HomeAssistant) -> None:
         add_extra_js_url(hass, f"{STATIC_URL}/{CARD_FILE}?v={version}")
     except KeyError:
         _LOGGER.warning("HA:s frontend är inte laddad, så Bussar-kortet registreras inte")
-    # Först när allt gått bra, så att ett misslyckat försök görs om vid nästa omladdning.
+    # Sätts även när frontend saknas, eftersom en omladdning inte gör den tillgänglig.
+    # Bara ett fel från statisk sökväg eller version gör att nästa omladdning försöker igen.
     hass.data[_CARD_REGISTERED] = True
