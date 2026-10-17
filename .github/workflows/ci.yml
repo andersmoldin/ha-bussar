@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+
+      - name: Install
+        run: pip install -r requirements_test.txt
+
+      - name: Lint
+        run: |
+          ruff check custom_components tests scripts && mypy custom_components/bussar --ignore-missing-imports
+
+      - name: Test
+        run: |
+          python -m pytest -q
