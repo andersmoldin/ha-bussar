@@ -50,3 +50,9 @@ class TrafiklabClient:
                 return await resp.json()
         except (aiohttp.ClientError, TimeoutError) as err:
             raise TrafiklabError(str(err)) from err
+
+
+def client_for(hass, api_key: str) -> TrafiklabClient:
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+    return TrafiklabClient(async_get_clientsession(hass), api_key)

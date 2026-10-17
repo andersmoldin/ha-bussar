@@ -8,14 +8,15 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from . import BussarConfigEntry
-from .const import CONF_LINE, CONF_PLATFORM, CONF_STOP_ID, SUBENTRY_LINE
+from .const import CONF_LINE, CONF_PLATFORM, CONF_STOP_ID, DOMAIN, SUBENTRY_LINE
 from .coordinator import StopCoordinator
-from .departures import Departure, upcoming
+from .departures import Departure, WatchedLine, upcoming
 
 
 async def async_setup_entry(
@@ -34,23 +35,23 @@ async def async_setup_entry(
 class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
     _attr_icon = "mdi:bus-clock"
+    _attr_has_entity_name = True
+    _attr_name = None
 
     def __init__(self, coordinator: StopCoordinator, subentry: ConfigSubentry) -> None:
         super().__init__(coordinator)
-        self._line = subentry.data[CONF_LINE]
-        self._platform = subentry.data[CONF_PLATFORM]
+        self._watched = WatchedLine(subentry.data[CONF_LINE], subentry.data[CONF_PLATFORM])
         self._attr_unique_id = subentry.subentry_id
-        self._attr_name = subentry.title
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, subentry.subentry_id)},
+            name=subentry.title,
+            entry_type=DeviceEntryType.SERVICE,
+        )
 
     def _next(self) -> Departure | None:
         if not self.coordinator.data:
             return None
-        found = upcoming(
-            self.coordinator.data,
-            line=self._line,
-            platform=self._platform,
-            now=dt_util.now(),
-        )
+        found = upcoming(self.coordinator.data, self._watched, now=dt_util.now())
         return found[0] if found else None
 
     @property
@@ -69,6 +70,6 @@ class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
             "departure_time": dt_util.as_local(departure.expected).strftime("%H:%M"),
             "expected": departure.expected.isoformat(),
             "destination": departure.destination,
-            "line": self._line,
-            "platform": self._platform,
+            "line": self._watched.line,
+            "platform": self._watched.platform,
         }

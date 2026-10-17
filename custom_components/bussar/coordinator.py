@@ -49,7 +49,8 @@ class StopCoordinator(DataUpdateCoordinator[list[Departure] | None]):
 
     async def _async_update_data(self) -> list[Departure] | None:
         if is_quiet(dt_util.now()):
-            return None
+            # Räkna vidare på senaste datan i stället för att hämta.
+            return self.data
         try:
             return parse_departures(await self._client.departures(self.stop_id))
         except TrafiklabAuthError as err:

@@ -5,9 +5,8 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import TrafiklabClient
+from .api import client_for
 from .const import CONF_STOP_ID, SUBENTRY_LINE
 from .coordinator import StopCoordinator
 
@@ -17,13 +16,9 @@ type BussarConfigEntry = ConfigEntry[dict[str, StopCoordinator]]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: BussarConfigEntry) -> bool:
-    client = TrafiklabClient(async_get_clientsession(hass), entry.data[CONF_API_KEY])
-    stop_ids = {
-        sub.data[CONF_STOP_ID] for sub in entry.get_subentries_of_type(SUBENTRY_LINE)
-    }
-    coordinators = {
-        stop_id: StopCoordinator(hass, entry, client, stop_id) for stop_id in stop_ids
-    }
+    client = client_for(hass, entry.data[CONF_API_KEY])
+    stop_ids = {sub.data[CONF_STOP_ID] for sub in entry.get_subentries_of_type(SUBENTRY_LINE)}
+    coordinators = {stop_id: StopCoordinator(hass, entry, client, stop_id) for stop_id in stop_ids}
     for coordinator in coordinators.values():
         await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinators

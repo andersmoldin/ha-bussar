@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.config_entries import (
@@ -13,7 +14,6 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
@@ -21,7 +21,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .api import TrafiklabAuthError, TrafiklabClient, TrafiklabError
+from .api import TrafiklabAuthError, TrafiklabError, client_for
 from .const import (
     CONF_LINE,
     CONF_PLATFORM,
@@ -30,13 +30,25 @@ from .const import (
     DOMAIN,
     SUBENTRY_LINE,
 )
-from .departures import parse_departures
+from .departures import WatchedLine, line_choices, parse_departures
 from .schema import vol
 
 # Godtycklig sökning som bara används för att pröva nyckeln.
 KEY_PROBE_QUERY = "Stockholm"
 CONF_QUERY = "query"
 CONF_LINE_PLATFORM = "line_platform"
+
+API_KEY_SCHEMA = vol.Schema({vol.Required(CONF_API_KEY): str})
+
+
+def _pick_one(field: str, options: list[SelectOptionDict]) -> Any:
+    return vol.Schema(
+        {
+            vol.Required(field): SelectSelector(
+                SelectSelectorConfig(options=options, mode=SelectSelectorMode.LIST)
+            )
+        }
+    )
 
 
 class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -49,26 +61,43 @@ class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> dict[str, type[ConfigSubentryFlow]]:
         return {SUBENTRY_LINE: LineSubentryFlow}
 
-    async def async_step_user(
+    async def _validate_key(self, api_key: str) -> dict[str, str]:
+        try:
+            await client_for(self.hass, api_key).search_stops(KEY_PROBE_QUERY)
+        except TrafiklabAuthError:
+            return {"base": "invalid_auth"}
+        except TrafiklabError:
+            return {"base": "cannot_connect"}
+        return {}
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        # En instans räcker: alla bevakade linjer delar nyckel och kvot.
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured(error="single_instance_allowed")
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = await self._validate_key(user_input[CONF_API_KEY])
+            if not errors:
+                return self.async_create_entry(
+                    title="Trafiklab", data={CONF_API_KEY: user_input[CONF_API_KEY]}
+                )
+        return self.async_show_form(step_id="user", data_schema=API_KEY_SCHEMA, errors=errors)
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            client = TrafiklabClient(async_get_clientsession(self.hass), user_input[CONF_API_KEY])
-            try:
-                await client.search_stops(KEY_PROBE_QUERY)
-            except TrafiklabAuthError:
-                errors["base"] = "invalid_auth"
-            except TrafiklabError:
-                errors["base"] = "cannot_connect"
-            else:
-                return self.async_create_entry(
-                    title="Trafiklab", data={CONF_API_KEY: user_input[CONF_API_KEY]}
+            errors = await self._validate_key(user_input[CONF_API_KEY])
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    self._get_reauth_entry(), data_updates={CONF_API_KEY: user_input[CONF_API_KEY]}
                 )
         return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
-            errors=errors,
+            step_id="reauth_confirm", data_schema=API_KEY_SCHEMA, errors=errors
         )
 
 
@@ -79,13 +108,10 @@ class LineSubentryFlow(ConfigSubentryFlow):
         self._stops: dict[str, str] = {}
         self._stop_id: str | None = None
 
-    def _client(self) -> TrafiklabClient:
-        entry = self._get_entry()
-        return TrafiklabClient(async_get_clientsession(self.hass), entry.data[CONF_API_KEY])
+    def _client(self):
+        return client_for(self.hass, self._get_entry().data[CONF_API_KEY])
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
@@ -103,73 +129,62 @@ class LineSubentryFlow(ConfigSubentryFlow):
             errors=errors,
         )
 
-    async def async_step_stop(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    async def async_step_stop(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         if user_input is not None:
             self._stop_id = user_input[CONF_STOP_ID]
             return await self.async_step_line()
         options = [SelectOptionDict(value=i, label=n) for i, n in self._stops.items()]
-        return self.async_show_form(
-            step_id="stop",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_STOP_ID): SelectSelector(
-                        SelectSelectorConfig(options=options, mode=SelectSelectorMode.LIST)
-                    )
-                }
-            ),
-        )
+        return self.async_show_form(step_id="stop", data_schema=_pick_one(CONF_STOP_ID, options))
 
-    async def async_step_line(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    async def async_step_line(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         assert self._stop_id is not None
-        stop_name = self._stops[self._stop_id]
         if user_input is not None:
-            line, platform = user_input[CONF_LINE_PLATFORM].split("|", 1)
-            return self.async_create_entry(
-                title=f"{line} läge {platform}, {stop_name}",
-                data={
-                    CONF_STOP_ID: self._stop_id,
-                    CONF_STOP_NAME: stop_name,
-                    CONF_LINE: line,
-                    CONF_PLATFORM: platform,
-                },
-            )
+            return self._create(WatchedLine.parse(user_input[CONF_LINE_PLATFORM]))
         try:
-            departures = parse_departures(await self._client().departures(self._stop_id))
+            choices = line_choices(parse_departures(await self._client().departures(self._stop_id)))
         except TrafiklabError:
             return self.async_abort(reason="cannot_connect")
-        # En rad per linje och läge, med destinationerna som syns i kommande avgångar.
-        combos: dict[str, list[str]] = {}
-        for d in departures:
-            if d.platform is None:
-                continue
-            dests = combos.setdefault(f"{d.line}|{d.platform}", [])
-            if d.destination not in dests:
-                dests.append(d.destination)
-        if not combos:
-            return self.async_abort(reason="no_departures")
+        if not choices:
+            # T.ex. nattetid eller gles linje: ange linje och läge själv.
+            return await self.async_step_manual()
         options = [
             SelectOptionDict(
-                value=key,
-                label=f"{key.split('|')[0]} läge {key.split('|')[1]} → {', '.join(dests)}",
+                value=watched.key,
+                label=f"{watched.line} läge {watched.platform} → {', '.join(destinations)}",
             )
-            for key, dests in sorted(combos.items(), key=lambda kv: _sort_key(kv[0]))
+            for watched, destinations in choices.items()
         ]
         return self.async_show_form(
-            step_id="line",
+            step_id="line", data_schema=_pick_one(CONF_LINE_PLATFORM, options)
+        )
+
+    async def async_step_manual(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        if user_input is not None:
+            return self._create(
+                WatchedLine(user_input[CONF_LINE].strip(), user_input[CONF_PLATFORM].strip())
+            )
+        return self.async_show_form(
+            step_id="manual",
             data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_LINE_PLATFORM): SelectSelector(
-                        SelectSelectorConfig(options=options, mode=SelectSelectorMode.LIST)
-                    )
-                }
+                {vol.Required(CONF_LINE): str, vol.Required(CONF_PLATFORM): str}
             ),
         )
 
-
-def _sort_key(key: str) -> tuple[int, str, str]:
-    line, platform = key.split("|", 1)
-    return (int(line) if line.isdigit() else 10**6, line, platform)
+    def _create(self, watched: WatchedLine) -> SubentryFlowResult:
+        assert self._stop_id is not None
+        unique_id = f"{self._stop_id}_{watched.line}_{watched.platform}"
+        if any(sub.unique_id == unique_id for sub in self._get_entry().subentries.values()):
+            return self.async_abort(reason="already_configured")
+        stop_name = self._stops[self._stop_id]
+        return self.async_create_entry(
+            title=f"{watched.line} läge {watched.platform}, {stop_name}",
+            unique_id=unique_id,
+            data={
+                CONF_STOP_ID: self._stop_id,
+                CONF_STOP_NAME: stop_name,
+                CONF_LINE: watched.line,
+                CONF_PLATFORM: watched.platform,
+            },
+        )

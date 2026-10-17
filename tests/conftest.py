@@ -43,3 +43,15 @@ def stop_lookup_payload() -> dict:
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     yield
+
+
+def shifted(payload: dict, delta) -> dict:
+    """Samma svar, men med alla avgångstider flyttade delta framåt."""
+    from datetime import datetime
+
+    out = json.loads(json.dumps(payload))
+    for dep in out["departures"]:
+        for key in ("scheduled", "realtime"):
+            if dep.get(key):
+                dep[key] = (datetime.fromisoformat(dep[key]) + delta).isoformat()
+    return out

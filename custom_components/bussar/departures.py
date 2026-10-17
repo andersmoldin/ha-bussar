@@ -10,6 +10,28 @@ from zoneinfo import ZoneInfo
 TRAFIKLAB_TZ = ZoneInfo("Europe/Stockholm")
 
 
+@dataclass(frozen=True, order=False)
+class WatchedLine:
+    """En linje i en riktning, där riktningen anges av hållplatsläget."""
+
+    line: str
+    platform: str
+
+    @property
+    def key(self) -> str:
+        return f"{self.line}|{self.platform}"
+
+    @classmethod
+    def parse(cls, key: str) -> WatchedLine:
+        line, platform = key.split("|", 1)
+        return cls(line, platform)
+
+    def sort_key(self) -> tuple[bool, int, str, str]:
+        # Numeriska linjer först, i nummerordning.
+        numeric = self.line.isdigit()
+        return (not numeric, int(self.line) if numeric else 0, self.line, self.platform)
+
+
 @dataclass(frozen=True)
 class Departure:
     line: str
@@ -21,8 +43,11 @@ class Departure:
     canceled: bool
 
 
-def _local(value: str) -> datetime:
-    return datetime.fromisoformat(value).replace(tzinfo=TRAFIKLAB_TZ)
+def _parse_time(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=TRAFIKLAB_TZ)
+    return parsed
 
 
 def parse_departures(payload: dict) -> list[Departure]:
@@ -34,8 +59,8 @@ def parse_departures(payload: dict) -> list[Departure]:
                 line=item["route"]["designation"],
                 platform=platform.get("designation"),
                 destination=item["route"]["destination"]["name"],
-                scheduled=_local(item["scheduled"]),
-                expected=_local(item.get("realtime") or item["scheduled"]),
+                scheduled=_parse_time(item["scheduled"]),
+                expected=_parse_time(item.get("realtime") or item["scheduled"]),
                 is_realtime=bool(item.get("is_realtime")),
                 canceled=bool(item.get("canceled")),
             )
@@ -44,16 +69,28 @@ def parse_departures(payload: dict) -> list[Departure]:
 
 
 def upcoming(
-    departures: list[Departure], *, line: str, platform: str, now: datetime
+    departures: list[Departure], watched: WatchedLine, *, now: datetime
 ) -> list[Departure]:
     return sorted(
         (
             d
             for d in departures
-            if d.line == line
-            and d.platform == platform
+            if d.line == watched.line
+            and d.platform == watched.platform
             and not d.canceled
             and d.expected >= now
         ),
         key=lambda d: d.expected,
     )
+
+
+def line_choices(departures: list[Departure]) -> dict[WatchedLine, list[str]]:
+    """Varje linje och läge i avgångarna, med destinationerna som syns där."""
+    destinations_by_line: dict[WatchedLine, list[str]] = {}
+    for d in departures:
+        if d.platform is None:
+            continue
+        destinations = destinations_by_line.setdefault(WatchedLine(d.line, d.platform), [])
+        if d.destination not in destinations:
+            destinations.append(d.destination)
+    return dict(sorted(destinations_by_line.items(), key=lambda kv: kv[0].sort_key()))

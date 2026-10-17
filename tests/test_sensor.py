@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
+from types import MappingProxyType
 from zoneinfo import ZoneInfo
 
 import pytest
-from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.config_entries import ConfigSubentry, ConfigSubentryData
 from homeassistant.const import CONF_API_KEY, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -19,7 +20,7 @@ from custom_components.bussar.const import (
     DOMAIN,
 )
 
-from .conftest import DEPARTURES_URL, STOP_A_ID, STOP_B_ID, load_fixture
+from .conftest import DEPARTURES_URL, STOP_A_ID, STOP_B_ID, load_fixture, shifted
 
 STOCKHOLM = ZoneInfo("Europe/Stockholm")
 RECORDED_AT = datetime(2026, 10, 17, 19, 43, 36, tzinfo=STOCKHOLM)
@@ -73,9 +74,7 @@ def _state(hass: HomeAssistant, entry: MockConfigEntry, line: str, platform: str
     return hass.states.get(entity_id)
 
 
-async def test_sensor_shows_minutes_and_time_of_next_departure(
-    hass: HomeAssistant, entry, freezer
-):
+async def test_sensor_shows_minutes_and_time_of_next_departure(hass: HomeAssistant, entry, freezer):
     freezer.move_to(RECORDED_AT)
 
     await _setup(hass, entry)
@@ -88,9 +87,7 @@ async def test_sensor_shows_minutes_and_time_of_next_departure(
     assert _state(hass, entry, "40", "A").state == "16"
 
 
-async def test_one_request_per_stop_per_minute(
-    hass: HomeAssistant, entry, aioclient_mock, freezer
-):
+async def test_one_request_per_stop_per_minute(hass: HomeAssistant, entry, aioclient_mock, freezer):
     freezer.move_to(RECORDED_AT)
     await _setup(hass, entry)
     assert aioclient_mock.call_count == 2
@@ -103,9 +100,7 @@ async def test_one_request_per_stop_per_minute(
     assert _state(hass, entry, "10", "A").state == "13"
 
 
-async def test_no_requests_during_night(
-    hass: HomeAssistant, entry, aioclient_mock, freezer
-):
+async def test_no_requests_during_night(hass: HomeAssistant, entry, aioclient_mock, freezer):
     freezer.move_to(datetime(2026, 10, 17, 23, 30, tzinfo=STOCKHOLM))
 
     await _setup(hass, entry)
@@ -115,3 +110,62 @@ async def test_no_requests_during_night(
 
     assert aioclient_mock.call_count == 0
     assert _state(hass, entry, "10", "A").state == STATE_UNKNOWN
+
+
+@pytest.mark.parametrize(
+    ("hour", "minute", "expected_calls"),
+    [(4, 59, 0), (5, 0, 2), (22, 59, 2), (23, 0, 0)],
+)
+async def test_quiet_hours_boundaries(
+    hass: HomeAssistant, entry, aioclient_mock, freezer, hour, minute, expected_calls
+):
+    freezer.move_to(datetime(2026, 10, 17, hour, minute, tzinfo=STOCKHOLM))
+
+    await _setup(hass, entry)
+
+    assert aioclient_mock.call_count == expected_calls
+
+
+async def test_countdown_continues_on_last_data_after_quiet_hours_start(
+    hass: HomeAssistant, aioclient_mock, freezer
+):
+    await hass.config.async_set_time_zone("Europe/Stockholm")
+    late = timedelta(hours=3, minutes=15)
+    aioclient_mock.get(
+        f"{DEPARTURES_URL}{STOP_A_ID}", json=shifted(load_fixture("departures-stop-a.json"), late)
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: "secret"},
+        subentries_data=[_line(STOP_A_ID, "Hållplats A", "10", "A")],
+    )
+    freezer.move_to(RECORDED_AT + late)
+    await _setup(hass, entry)
+
+    freezer.move_to(datetime(2026, 10, 17, 23, 1, tzinfo=STOCKHOLM))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert aioclient_mock.call_count == 1
+    assert _state(hass, entry, "10", "A").state == "13"
+
+
+async def test_watched_line_added_later_gets_a_sensor_without_restart(
+    hass: HomeAssistant, entry, freezer
+):
+    freezer.move_to(RECORDED_AT)
+    await _setup(hass, entry)
+
+    new_line = _line(STOP_A_ID, "Hållplats A", "30", "B")
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data=MappingProxyType(new_line["data"]),
+            subentry_type=new_line["subentry_type"],
+            title=new_line["title"],
+            unique_id=new_line["unique_id"],
+        ),
+    )
+    await hass.async_block_till_done()
+
+    assert _state(hass, entry, "30", "B").state == "44"
