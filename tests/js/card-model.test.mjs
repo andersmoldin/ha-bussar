@@ -67,3 +67,23 @@ test("ingen buss att hinna ger tom rad", () => {
   assert.equal(row.fill, 0);
   assert.equal(row.line, "10");
 });
+
+test("otillgänglig sensor ger en rad som säger det", () => {
+  const row = rowModel({ state: "unavailable", attributes: {} }, at("19:43:36"), TZ);
+
+  assert.equal(row.unavailable, true);
+  assert.equal(row.minutes, null);
+  assert.equal(row.fill, 0);
+});
+
+test("saknade zongränser ger ingen zon och tom stapel i stället för NaN", () => {
+  const row = rowModel(
+    sensor({ walk_seconds: undefined, run_seconds: undefined, window_seconds: undefined }),
+    at("19:43:36"),
+    TZ,
+  );
+
+  assert.equal(row.minutes, 15);
+  assert.equal(row.zone, null);
+  assert.equal(row.fill, 0);
+});

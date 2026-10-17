@@ -37,6 +37,7 @@
       "sensor.linje_11": sensor("11", "Centralstationen", 500, 1400, { is_realtime: true, delay_minutes: -1 }),
       "sensor.linje_7": sensor("7", "Centrum", 200, 1100),
       "sensor.linje_107": sensor("107", "Ort", 0, null, { expected: null }),
+      "sensor.otillganglig": { state: "unavailable", attributes: {} },
     },
   };
   const card = document.querySelector("bussar-card");

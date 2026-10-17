@@ -35,7 +35,7 @@ entities:
   - sensor.7_lage_a_hallplats
 ```
 
-Varje rad visar linje, destination och minuter kvar, med klockslag, försening (`+2`) och nästa buss under (`23:40 +2 · 23:55`). Stapeln töms mot springgränsen och är grön (gott om tid), gul (nu passar det att gå) eller orange (spring). En pulserande grön punkt betyder realtid. Kortet räknar ner varje sekund och byter till nästa buss vid springgränsen.
+Varje rad visar linje och destination med aktuell avgång under (`23:40 +2`), och till höger minuter kvar med nästa buss under (`sedan 23:55`). Stapeln töms mot springgränsen och är grön (gott om tid), gul (nu passar det att gå) eller orange (spring). En pulserande grön punkt betyder realtid. Kortet räknar ner varje sekund och byter till nästa buss vid springgränsen.
 
 Förhandsvisa kortet utan HA: `python3 -m http.server 8765` och öppna `http://localhost:8765/tests/js/preview.html?theme=dark`.
 
