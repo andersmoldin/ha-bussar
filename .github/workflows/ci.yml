@@ -28,9 +28,7 @@ jobs:
         run: pip install -r requirements_test.txt
 
       - name: Lint
-        run: |
-          ruff check custom_components tests scripts && mypy custom_components/bussar --ignore-missing-imports
+        run: scripts/check lint
 
       - name: Test
-        run: |
-          python -m pytest -q
+        run: scripts/check test
