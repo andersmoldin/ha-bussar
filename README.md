@@ -24,7 +24,7 @@ Sensorn skrivs om vid varje minutbyte och zongräns, även mellan hämtningarna.
 
 ## Kvoter
 
-En hållplats hämtas en gång per minut, delat mellan alla linjer där, och inga anrop görs 23–05. Två hållplatser blir ungefär 67 000 anrop per månad, vilket ryms i Bronze-nivåns 100 000.
+En hållplats hämtas en gång per minut, delat mellan alla linjer där, och inga anrop görs 23–05 när det redan finns data; efter omstart eller omladdning nattetid hämtas varje hållplats en gång. Två hållplatser blir ungefär 67 000 anrop per månad, vilket ryms i Bronze-nivåns 100 000.
 
 ## Utveckling
 

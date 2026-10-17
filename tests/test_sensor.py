@@ -105,16 +105,37 @@ async def test_one_request_per_stop_per_minute(hass: HomeAssistant, entry, aiocl
     assert _state(hass, entry, "10", "A").state == "13"
 
 
-async def test_no_requests_during_night(hass: HomeAssistant, entry, aioclient_mock, freezer):
-    freezer.move_to(datetime(2026, 10, 17, 23, 30, tzinfo=STOCKHOLM))
+async def test_one_request_per_stop_at_night_setup_then_none(
+    hass: HomeAssistant, aioclient_mock, freezer
+):
+    await hass.config.async_set_time_zone("Europe/Stockholm")
+    night = datetime(2026, 10, 17, 23, 30, tzinfo=STOCKHOLM)
+    late = night - RECORDED_AT
+    for stop_id, fixture in (
+        (STOP_A_ID, "departures-stop-a.json"),
+        (STOP_B_ID, "departures-stop-b.json"),
+    ):
+        aioclient_mock.get(f"{DEPARTURES_URL}{stop_id}", json=shifted(load_fixture(fixture), late))
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: "secret"},
+        subentries_data=[
+            _line(STOP_A_ID, "Hållplats A", "10", "A"),
+            _line(STOP_B_ID, "Hållplats B", "40", "A"),
+        ],
+    )
+    freezer.move_to(night)
 
     await _setup(hass, entry)
+    assert aioclient_mock.call_count == 2
+    assert _state(hass, entry, "10", "A").state == "15"
+
     freezer.tick(timedelta(minutes=5))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
 
-    assert aioclient_mock.call_count == 0
-    assert _state(hass, entry, "10", "A").state == STATE_UNKNOWN
+    assert aioclient_mock.call_count == 2
+    assert _state(hass, entry, "10", "A").state == "10"
 
 
 @pytest.mark.parametrize(
@@ -124,11 +145,16 @@ async def test_no_requests_during_night(hass: HomeAssistant, entry, aioclient_mo
 async def test_quiet_hours_boundaries(
     hass: HomeAssistant, entry, aioclient_mock, freezer, hour, minute, expected_calls
 ):
-    freezer.move_to(datetime(2026, 10, 17, hour, minute, tzinfo=STOCKHOLM))
-
+    boundary = datetime(2026, 10, 17, hour, minute, tzinfo=STOCKHOLM)
+    freezer.move_to(boundary - timedelta(minutes=1))
     await _setup(hass, entry)
+    assert aioclient_mock.call_count == 2
 
-    assert aioclient_mock.call_count == expected_calls
+    freezer.move_to(boundary + timedelta(seconds=1))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert aioclient_mock.call_count == 2 + expected_calls
 
 
 async def test_countdown_continues_on_last_data_after_quiet_hours_start(

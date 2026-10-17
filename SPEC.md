@@ -56,7 +56,7 @@ Mätaren räknar ner lokalt varje sekund och rättar sig när ny data kommer.
 - Två separata API-nycklar, en per API.
 - Avgångs-API:t cachar 60 s, så tätare anrop är meningslösa.
 - Ett anrop per hållplats täcker alla linjer där.
-- Inga anrop 23–05.
+- Inga anrop 23–05 när data redan finns; saknas data (omstart, omladdning) hämtas varje hållplats en gång.
 - Silver nekas för privata avgångstavlor, så vi kör på Bronze.
 - ResRobot används inte. Det saknar realtid för UL och är deprecated.
 
