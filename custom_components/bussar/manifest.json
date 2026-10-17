@@ -1,8 +1,16 @@
 {
   "domain": "bussar",
   "name": "Bussar",
-  "codeowners": ["@andersmoldin"],
+  "after_dependencies": [
+    "frontend"
+  ],
+  "codeowners": [
+    "@andersmoldin"
+  ],
   "config_flow": true,
+  "dependencies": [
+    "http"
+  ],
   "documentation": "https://github.com/andersmoldin/ha-bussar",
   "integration_type": "service",
   "iot_class": "cloud_polling",

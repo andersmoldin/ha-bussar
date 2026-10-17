@@ -23,6 +23,22 @@ Varje bevakad linje blir en sensor med minuter till nästa buss **som går att h
 
 Sensorn skrivs om vid varje minutbyte och zongräns, även mellan hämtningarna. Gångtid (4,5 min), springtid (2 min) och fönster (5 min) ändras per linje via **⋮ → Ändra gångtider** på den bevakade linjen.
 
+## Kortet
+
+Integrationen laddar kortet själv, så ingen resurs behöver läggas till. Redigera en dashboard → **Lägg till kort** → **Bussar**, eller använd YAML:
+
+```yaml
+type: custom:bussar-card
+title: Bussar
+entities:
+  - sensor.3_lage_a_hallplats
+  - sensor.7_lage_a_hallplats
+```
+
+Varje rad visar linje, destination och minuter kvar, med klockslag, försening (`+2`) och nästa buss under (`23:40 +2 · 23:55`). Stapeln töms mot springgränsen och är grön (gott om tid), gul (nu passar det att gå) eller orange (spring). En pulserande grön punkt betyder realtid. Kortet räknar ner varje sekund och byter till nästa buss vid springgränsen.
+
+Förhandsvisa kortet utan HA: `python3 -m http.server 8765` och öppna `http://localhost:8765/tests/js/preview.html?theme=dark`.
+
 ## Kvoter
 
 En hållplats hämtas en gång per minut, delat mellan alla linjer där, och inga anrop görs 23–05 när det redan finns data; efter omstart eller omladdning nattetid hämtas varje hållplats en gång. Två hållplatser blir ungefär 67 000 anrop per månad, vilket ryms i Bronze-nivåns 100 000.
