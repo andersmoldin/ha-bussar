@@ -1,0 +1,303 @@
+{
+  "timestamp": "2026-10-17T19:43:36",
+  "query": {
+    "queryTime": "2026-10-17T19:43:00",
+    "query": "740000002"
+  },
+  "stops": [
+    {
+      "id": "7000",
+      "name": "Hållplats B",
+      "lat": 58.325801,
+      "lon": 19.118121,
+      "transport_modes": [
+        "BUS"
+      ],
+      "alerts": []
+    }
+  ],
+  "departures": [
+    {
+      "scheduled": "2026-10-17T19:53:05",
+      "realtime": "2026-10-17T19:54:30",
+      "delay": 85,
+      "canceled": false,
+      "route": {
+        "name": null,
+        "designation": "40",
+        "transport_mode_code": 700,
+        "transport_mode": "BUS",
+        "direction": "Ort K",
+        "origin": {
+          "id": "8000",
+          "name": "Ort L"
+        },
+        "destination": {
+          "id": "9000",
+          "name": "Ort M"
+        }
+      },
+      "trip": {
+        "trip_id": "3301dde8b046dc679",
+        "start_date": "2026-10-17",
+        "technical_number": 291
+      },
+      "agency": {
+        "id": "505000000000000003",
+        "name": "UL",
+        "operator": "Gamla Uppsala Buss AB"
+      },
+      "stop": {
+        "id": "7000",
+        "name": "Hållplats B",
+        "lat": 58.325801,
+        "lon": 19.118121
+      },
+      "scheduled_platform": {
+        "id": "9022050000004",
+        "designation": "B"
+      },
+      "realtime_platform": {
+        "id": "9022050000004",
+        "designation": "B"
+      },
+      "alerts": [],
+      "is_realtime": true
+    },
+    {
+      "scheduled": "2026-10-17T19:59:39",
+      "realtime": "2026-10-17T19:59:39",
+      "delay": 0,
+      "canceled": false,
+      "route": {
+        "name": null,
+        "designation": "40",
+        "transport_mode_code": 700,
+        "transport_mode": "BUS",
+        "direction": "Ort N",
+        "origin": {
+          "id": "9000",
+          "name": "Ort M"
+        },
+        "destination": {
+          "id": "8000",
+          "name": "Ort L"
+        }
+      },
+      "trip": {
+        "trip_id": "33019ad2b4c966017",
+        "start_date": "2026-10-17",
+        "technical_number": 294
+      },
+      "agency": {
+        "id": "505000000000000003",
+        "name": "UL",
+        "operator": "Gamla Uppsala Buss AB"
+      },
+      "stop": {
+        "id": "7000",
+        "name": "Hållplats B",
+        "lat": 58.325801,
+        "lon": 19.118121
+      },
+      "scheduled_platform": {
+        "id": "9022050000005",
+        "designation": "A"
+      },
+      "realtime_platform": {
+        "id": "9022050000005",
+        "designation": "A"
+      },
+      "alerts": [],
+      "is_realtime": false
+    },
+    {
+      "scheduled": "2026-10-17T20:11:49",
+      "realtime": "2026-10-17T20:11:13",
+      "delay": -36,
+      "canceled": false,
+      "route": {
+        "name": null,
+        "designation": "40",
+        "transport_mode_code": 700,
+        "transport_mode": "BUS",
+        "direction": "Ort K",
+        "origin": {
+          "id": "8000",
+          "name": "Ort L"
+        },
+        "destination": {
+          "id": "9000",
+          "name": "Ort M"
+        }
+      },
+      "trip": {
+        "trip_id": "33018d5496c2276fb",
+        "start_date": "2026-10-17",
+        "technical_number": 293
+      },
+      "agency": {
+        "id": "505000000000000003",
+        "name": "UL",
+        "operator": "Gamla Uppsala Buss AB"
+      },
+      "stop": {
+        "id": "7000",
+        "name": "Hållplats B",
+        "lat": 58.325801,
+        "lon": 19.118121
+      },
+      "scheduled_platform": {
+        "id": "9022050000004",
+        "designation": "B"
+      },
+      "realtime_platform": {
+        "id": "9022050000004",
+        "designation": "B"
+      },
+      "alerts": [],
+      "is_realtime": true
+    },
+    {
+      "scheduled": "2026-10-17T20:19:42",
+      "realtime": "2026-10-17T20:19:42",
+      "delay": 0,
+      "canceled": false,
+      "route": {
+        "name": null,
+        "designation": "40",
+        "transport_mode_code": 700,
+        "transport_mode": "BUS",
+        "direction": "Ort N",
+        "origin": {
+          "id": "9000",
+          "name": "Ort M"
+        },
+        "destination": {
+          "id": "8000",
+          "name": "Ort L"
+        }
+      },
+      "trip": {
+        "trip_id": "3301bc30ed0fe6f23",
+        "start_date": "2026-10-17",
+        "technical_number": 296
+      },
+      "agency": {
+        "id": "505000000000000003",
+        "name": "UL",
+        "operator": "Gamla Uppsala Buss AB"
+      },
+      "stop": {
+        "id": "7000",
+        "name": "Hållplats B",
+        "lat": 58.325801,
+        "lon": 19.118121
+      },
+      "scheduled_platform": {
+        "id": "9022050000005",
+        "designation": "A"
+      },
+      "realtime_platform": {
+        "id": "9022050000005",
+        "designation": "A"
+      },
+      "alerts": [],
+      "is_realtime": false
+    },
+    {
+      "scheduled": "2026-10-17T20:32:00",
+      "realtime": "2026-10-17T20:32:00",
+      "delay": 0,
+      "canceled": false,
+      "route": {
+        "name": null,
+        "designation": "40",
+        "transport_mode_code": 700,
+        "transport_mode": "BUS",
+        "direction": "Ort K",
+        "origin": {
+          "id": "8000",
+          "name": "Ort L"
+        },
+        "destination": {
+          "id": "9000",
+          "name": "Ort M"
+        }
+      },
+      "trip": {
+        "trip_id": "3301700d0c385babd",
+        "start_date": "2026-10-17",
+        "technical_number": 295
+      },
+      "agency": {
+        "id": "505000000000000003",
+        "name": "UL",
+        "operator": "Gamla Uppsala Buss AB"
+      },
+      "stop": {
+        "id": "7000",
+        "name": "Hållplats B",
+        "lat": 58.325801,
+        "lon": 19.118121
+      },
+      "scheduled_platform": {
+        "id": "9022050000004",
+        "designation": "B"
+      },
+      "realtime_platform": {
+        "id": "9022050000004",
+        "designation": "B"
+      },
+      "alerts": [],
+      "is_realtime": false
+    },
+    {
+      "scheduled": "2026-10-17T20:39:43",
+      "realtime": "2026-10-17T20:39:43",
+      "delay": 0,
+      "canceled": false,
+      "route": {
+        "name": null,
+        "designation": "40",
+        "transport_mode_code": 700,
+        "transport_mode": "BUS",
+        "direction": "Ort N",
+        "origin": {
+          "id": "9000",
+          "name": "Ort M"
+        },
+        "destination": {
+          "id": "8000",
+          "name": "Ort L"
+        }
+      },
+      "trip": {
+        "trip_id": "3301d909d414bfe65",
+        "start_date": "2026-10-17",
+        "technical_number": 298
+      },
+      "agency": {
+        "id": "505000000000000003",
+        "name": "UL",
+        "operator": "Gamla Uppsala Buss AB"
+      },
+      "stop": {
+        "id": "7000",
+        "name": "Hållplats B",
+        "lat": 58.325801,
+        "lon": 19.118121
+      },
+      "scheduled_platform": {
+        "id": "9022050000005",
+        "designation": "A"
+      },
+      "realtime_platform": {
+        "id": "9022050000005",
+        "designation": "A"
+      },
+      "alerts": [],
+      "is_realtime": false
+    }
+  ]
+}
