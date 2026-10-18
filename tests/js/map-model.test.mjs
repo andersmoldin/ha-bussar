@@ -27,7 +27,7 @@ const vehicle = (overrides = {}) => ({
 test("bussen får linjens färg och kopplas till sin rad", () => {
   const blue = { ...sensor("10", "A"), attributes: { ...sensor("10", "A").attributes, line_color: "#1e88e5" } };
 
-  const markers = vehicleMarkers([vehicle()], [blue], at("19:43:36"));
+  const markers = vehicleMarkers([vehicle()], [blue]);
 
   assert.deepEqual(markers, [
     { id: "v1", line: "10", row: rowKey(blue), color: "#1e88e5", textColor: "#fff", lat: 58.31, lon: 19.12 },
@@ -35,13 +35,13 @@ test("bussen får linjens färg och kopplas till sin rad", () => {
 });
 
 test("samma linje och läge vid två hållplatser: bussen hör till sin egen hållplats", () => {
-  const markers = vehicleMarkers([vehicle({ stop_id: "2000" })], [sensor("10", "A", "1000"), sensor("10", "A", "2000")], at("19:43:36"));
+  const markers = vehicleMarkers([vehicle({ stop_id: "2000" })], [sensor("10", "A", "1000"), sensor("10", "A", "2000")]);
 
   assert.equal(markers[0].row, rowKey(sensor("10", "A", "2000")));
 });
 
 test("linje utan vald färg: markören får temats färg", () => {
-  const markers = vehicleMarkers([vehicle()], [sensor("10", "A")], at("19:43:36"));
+  const markers = vehicleMarkers([vehicle()], [sensor("10", "A")]);
 
   assert.equal(markers[0].color, null);
 });
@@ -61,7 +61,7 @@ test("raden och bussen får samma nyckel, så att en rad kan markera sin buss", 
 });
 
 test("bussar på linjer som kortet inte visar ritas inte", () => {
-  const markers = vehicleMarkers([vehicle({ line: "30" })], [sensor("10", "A")], at("19:43:36"));
+  const markers = vehicleMarkers([vehicle({ line: "30" })], [sensor("10", "A")]);
 
   assert.deepEqual(markers, []);
 });

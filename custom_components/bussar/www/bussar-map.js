@@ -12,7 +12,8 @@ const FIT = { maxZoom: 16, pad: 0.15, animate: false };
 // Så länge får ha-map på sig att ladda och starta sin kartmotor.
 const LOAD_TIMEOUT_MS = 10000;
 
-// Reservläget vill ha en färgsträng och förstår inte CSS-variabler.
+// HA:s standardfärg för --primary-color. Reservläget vill ha en färgsträng och förstår
+// inte CSS-variabler, så där används den direkt.
 const FALLBACK_COLOR = "#03a9f4";
 
 const STATUS_TEXT = {
@@ -50,7 +51,7 @@ function busElement(marker, selected) {
     borderRadius: "50%",
     border: "2px solid #fff",
     // Linjens färg, eller temats färger när ingen linjefärg är vald.
-    background: marker.color ?? "var(--primary-color, #03a9f4)",
+    background: marker.color ?? `var(--primary-color, ${FALLBACK_COLOR})`,
     color: marker.textColor ?? "var(--text-primary-color, #fff)",
     font: "700 11px/20px var(--ha-font-family-body, sans-serif)",
     textAlign: "center",

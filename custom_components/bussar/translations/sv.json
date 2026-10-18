@@ -75,7 +75,8 @@
             "walk_minutes": "Gångtid",
             "run_minutes": "Springtid",
             "window_minutes": "Fönster",
-            "line_color": "Linjefärg"
+            "line_color": "Linjefärg",
+            "theme_color": "Använd temats färg (ta bort linjefärgen)"
           }
         }
       },

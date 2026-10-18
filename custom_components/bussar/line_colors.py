@@ -23,6 +23,12 @@ def with_line_color(options: dict[str, Any], line: str, rgb: Sequence[int]) -> d
     return {**options, OPTION_LINE_COLORS: colors}
 
 
+def without_line_color(options: dict[str, Any], line: str) -> dict[str, Any]:
+    """Postens options utan färg för linjen, så att temats färger gäller."""
+    colors = {k: v for k, v in options.get(OPTION_LINE_COLORS, {}).items() if k != line}
+    return {**options, OPTION_LINE_COLORS: colors}
+
+
 def as_rgb(color: str) -> list[int]:
     """#rrggbb som [r, g, b], för HA:s färgväljare."""
     return [int(color[i : i + 2], 16) for i in (1, 3, 5)]

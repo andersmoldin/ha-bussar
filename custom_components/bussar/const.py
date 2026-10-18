@@ -15,6 +15,8 @@ CONF_WINDOW_MINUTES = "window_minutes"
 
 # Färg per linjenummer, i postens options som {"10": "#1e88e5"}. Väljs på en bevakad linje.
 CONF_LINE_COLOR = "line_color"
+# Kryssruta: ta bort linjens färg och använd temats färger igen.
+CONF_THEME_COLOR = "theme_color"
 OPTION_LINE_COLORS = "line_colors"
 
 CONF_VEHICLE_API_KEY = "vehicle_api_key"

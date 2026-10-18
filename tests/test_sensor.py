@@ -404,3 +404,16 @@ async def test_line_colour_chosen_on_one_watched_line_applies_to_the_line_number
     assert _state(hass, entry, "10", "A").attributes["line_color"] == "#1e88e5"
     assert _state(hass, entry, "10", "B").attributes["line_color"] == "#1e88e5"
     assert _state(hass, entry, "20", "B").attributes["line_color"] is None
+
+    # Tillbaka till temats färg.
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "line"),
+        context={"source": SOURCE_RECONFIGURE, "subentry_id": subentry_id},
+    )
+    await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {"walk_minutes": 4.5, "run_minutes": 2, "window_minutes": 5, "theme_color": True},
+    )
+    await hass.async_block_till_done()
+
+    assert _state(hass, entry, "10", "B").attributes["line_color"] is None

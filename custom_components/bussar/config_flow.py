@@ -17,6 +17,7 @@ from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     ColorRGBSelector,
     NumberSelector,
     NumberSelectorConfig,
@@ -36,6 +37,7 @@ from .const import (
     CONF_RUN_MINUTES,
     CONF_STOP_ID,
     CONF_STOP_NAME,
+    CONF_THEME_COLOR,
     CONF_VEHICLE_API_KEY,
     CONF_WALK_MINUTES,
     CONF_WINDOW_MINUTES,
@@ -45,7 +47,7 @@ from .const import (
     USAGE_POSITIONS,
 )
 from .departures import WatchedLine, line_choices, parse_departures
-from .line_colors import as_rgb, line_color, with_line_color
+from .line_colors import as_rgb, line_color, with_line_color, without_line_color
 from .schema import vol
 from .zones import DEFAULT_TIMING
 
@@ -291,26 +293,31 @@ class LineSubentryFlow(ConfigSubentryFlow):
         line = subentry.data[CONF_LINE]
         errors: dict[str, str] = {}
         if user_input is not None:
-            timing = {k: v for k, v in user_input.items() if k != CONF_LINE_COLOR}
+            timing = {
+                k: v for k, v in user_input.items() if k not in (CONF_LINE_COLOR, CONF_THEME_COLOR)
+            }
             if timing[CONF_RUN_MINUTES] > timing[CONF_WALK_MINUTES]:
                 errors["base"] = "run_longer_than_walk"
             else:
                 # Färgen gäller linjenumret, alltså alla bevakade linjer med samma nummer.
-                if CONF_LINE_COLOR in user_input:
-                    self.hass.config_entries.async_update_entry(
-                        entry,
-                        options=with_line_color(
-                            dict(entry.options), line, user_input[CONF_LINE_COLOR]
-                        ),
-                    )
+                options = dict(entry.options)
+                if user_input.get(CONF_THEME_COLOR):
+                    options = without_line_color(options, line)
+                elif CONF_LINE_COLOR in user_input:
+                    options = with_line_color(options, line, user_input[CONF_LINE_COLOR])
+                self.hass.config_entries.async_update_entry(entry, options=options)
+                # Varje ändring laddar om posten. Ändrades bara färgen räcker den omladdningen.
+                if all(subentry.data.get(k) == v for k, v in timing.items()):
+                    return self.async_abort(reason="reconfigure_successful")
                 return self.async_update_and_abort(entry, subentry, data_updates=timing)
         color = line_color(entry, line)
+        shown = (user_input or {}).get(CONF_LINE_COLOR) or (as_rgb(color) if color else None)
         schema = _timing_schema(user_input or subentry.data).extend(
             {
-                vol.Optional(
-                    CONF_LINE_COLOR,
-                    description={"suggested_value": as_rgb(color) if color else None},
-                ): ColorRGBSelector()
+                vol.Optional(CONF_LINE_COLOR, description={"suggested_value": shown}): (
+                    ColorRGBSelector()
+                ),
+                vol.Optional(CONF_THEME_COLOR, default=False): BooleanSelector(),
             }
         )
         return self.async_show_form(

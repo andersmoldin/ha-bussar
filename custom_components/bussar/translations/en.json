@@ -70,12 +70,13 @@
         },
         "reconfigure": {
           "title": "Walking times and colour",
-          "description": "Minutes from the door to the stop. The window is how long the meter shows 'time to go'. The colour applies to every watched line numbered {line}, in the card and on the map.",
+          "description": "Minutes from your door to the stop. The window is how long the gauge shows 'time to go'. The colour applies to every watched line numbered {line}, in the card and on the map.",
           "data": {
             "walk_minutes": "Walking time",
             "run_minutes": "Running time",
             "window_minutes": "Window",
-            "line_color": "Line colour"
+            "line_color": "Line colour",
+            "theme_color": "Use theme colour (remove line colour)"
           }
         }
       },
