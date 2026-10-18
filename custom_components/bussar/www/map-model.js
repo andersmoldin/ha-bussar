@@ -16,27 +16,29 @@ export function vehicleMarkers(vehicles, sensors, nowMs) {
       { walk: sensor.attributes.walk_seconds, run: sensor.attributes.run_seconds, window: sensor.attributes.window_seconds },
     ]),
   );
-  return vehicles.map((v) => {
+  // Bussar skickar bussarna för alla bevakade linjer. Kortet visar bara sina egna.
+  return vehicles.flatMap((v) => {
     const row = key(v.line, v.platform, v.stop_id);
     const timing = timingByRow.get(row);
+    if (!timing) return [];
     const secondsLeft = (Date.parse(v.expected) - nowMs) / 1000;
-    return { id: v.vehicle_id, line: v.line, row, zone: zoneFor(secondsLeft, timing), lat: v.latitude, lon: v.longitude };
+    return [{ id: v.vehicle_id, line: v.line, row, zone: zoneFor(secondsLeft, timing), lat: v.latitude, lon: v.longitude }];
   });
 }
 
-// Punkterna kartan zoomar till när den fälls ut: hemmet, varje hållplats en gång och bussarna.
-export function mapPoints(sensors, vehicles, home) {
-  const points = home ? [home] : [];
-  const seen = new Set();
+// Varje hållplats en gång. Alla lägen vid en hållplats delar position.
+export function stopPoints(sensors) {
+  const points = new Map();
   for (const { attributes: a } of sensors) {
-    if (typeof a.latitude !== "number" || typeof a.longitude !== "number") continue;
-    const key = `${a.latitude},${a.longitude}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    points.push([a.latitude, a.longitude]);
+    if (typeof a.stop_latitude !== "number" || typeof a.stop_longitude !== "number") continue;
+    points.set(`${a.stop_latitude},${a.stop_longitude}`, [a.stop_latitude, a.stop_longitude]);
   }
-  for (const v of vehicles) points.push([v.latitude, v.longitude]);
-  return points;
+  return [...points.values()];
+}
+
+// Punkterna kartan zoomar till när den fälls ut: hemmet, hållplatserna och bussarna.
+export function mapPoints(sensors, vehicles, home) {
+  return [...(home ? [home] : []), ...stopPoints(sensors), ...vehicles.map((v) => [v.latitude, v.longitude])];
 }
 
 const SUBSCRIBE = { type: "bussar/vehicles/subscribe" };

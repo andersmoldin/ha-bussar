@@ -134,6 +134,7 @@ class BussarCard extends HTMLElement {
 
   disconnectedCallback() {
     clearInterval(this._timer);
+    // Kortet syns inte längre: fäll ihop kartan så att positionshämtningen slutar.
     this._map?.disconnect();
   }
 
@@ -182,7 +183,6 @@ class BussarCard extends HTMLElement {
     }
     this._map.hass = this._hass;
     this._map.sensors = this._config.entities;
-    this._map.toggle.hidden = this._map.noKey || this._config.entities.length === 0;
     const now = Date.now();
     const timeZone = this._hass.config?.time_zone;
     const selected = this._map.selected;

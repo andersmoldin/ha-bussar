@@ -46,7 +46,7 @@ test("en buss som inte går att hinna ritas utan zonfärg", () => {
 });
 
 test("kartan zoomar till hem, varje hållplats en gång och bussarna", () => {
-  const withPlace = (s, lat, lon) => ({ ...s, attributes: { ...s.attributes, latitude: lat, longitude: lon } });
+  const withPlace = (s, lat, lon) => ({ ...s, attributes: { ...s.attributes, stop_latitude: lat, stop_longitude: lon } });
   const sensors = [withPlace(sensor("10", "A"), 58.3, 19.1), withPlace(sensor("20", "B"), 58.3, 19.1), sensor("40", "A", "2000")];
 
   const points = mapPoints(sensors, [vehicle()], [58.2, 19.0]);
@@ -57,4 +57,10 @@ test("kartan zoomar till hem, varje hållplats en gång och bussarna", () => {
 test("raden och bussen får samma nyckel, så att en rad kan markera sin buss", () => {
   assert.equal(rowKey(sensor("10", "A", "1000")), "1000|10|A");
   assert.notEqual(rowKey(sensor("10", "A", "1000")), rowKey(sensor("10", "A", "2000")));
+});
+
+test("bussar på linjer som kortet inte visar ritas inte", () => {
+  const markers = vehicleMarkers([vehicle({ line: "30" })], [sensor("10", "A")], at("19:43:36"));
+
+  assert.deepEqual(markers, []);
 });

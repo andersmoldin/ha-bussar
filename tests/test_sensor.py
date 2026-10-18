@@ -347,7 +347,9 @@ async def test_sensor_exposes_stop_coordinates_for_the_map(hass: HomeAssistant, 
     await _setup(hass, entry)
 
     attrs = _state(hass, entry, "10", "A").attributes
-    assert (attrs["latitude"], attrs["longitude"]) == (58.322602, 19.126149)
+    assert (attrs["stop_latitude"], attrs["stop_longitude"]) == (58.322602, 19.126149)
+    # Inte latitude/longitude: då ritar HA:s kartvy varje Bussar-sensor som en entitet.
+    assert "latitude" not in attrs
 
 
 async def test_sensor_exposes_stop_id_so_the_card_can_match_buses(

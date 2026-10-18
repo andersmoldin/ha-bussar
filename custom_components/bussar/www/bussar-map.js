@@ -3,19 +3,22 @@
 // Räknelogik och prenumeration finns i map-model.js.
 
 const version = new URL(import.meta.url).search;
-const { VehicleFeed, mapPoints, vehicleMarkers } = await import(`./map-model.js${version}`);
+const { VehicleFeed, mapPoints, stopPoints, vehicleMarkers } = await import(`./map-model.js${version}`);
 
 const HEIGHT = 250;
 const MARKER_SIZE = 24;
 const STOP_SIZE = 14;
 const FIT = { maxZoom: 16, pad: 0.15, animate: false };
+// Så länge får ha-map på sig att ladda och starta sin kartmotor.
+const LOAD_TIMEOUT_MS = 10000;
 
 const ZONE_COLOR = {
   plenty: "var(--bussar-plenty)",
   go: "var(--bussar-go)",
   run: "var(--bussar-run)",
 };
-// Samma färger som ovan, för spåren i reservläget där ha-map vill ha en färgsträng.
+// Standardfärgerna från kortets :host, för reservläget där ha-map vill ha en färgsträng och
+// inte förstår CSS-variabler. Ett eget tema slår därför inte igenom på reservprickarna.
 const ZONE_HEX = { plenty: "#43a047", go: "#f4c20d", run: "#ffa600" };
 const NO_ZONE = "#9e9e9e";
 
@@ -23,6 +26,7 @@ const STATUS_TEXT = {
   waiting: "Bussar startar …",
   unavailable: "Bussar är inte igång.",
   invalid_key: "Nyckeln för fordonspositioner avvisades.",
+  no_map: "Kartan kunde inte laddas.",
 };
 
 export const MAP_STYLE = `
@@ -76,12 +80,17 @@ function stopElement() {
   return el;
 }
 
+const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms));
+
 // HA laddar ha-map först när ett kartkort behövs. Ett osynligt kartkort hämtar den.
 async function loadHaMap() {
   if (customElements.get("ha-map")) return;
-  const helpers = await window.loadCardHelpers?.();
-  helpers?.createCardElement({ type: "map", entities: [] });
-  await customElements.whenDefined("ha-map");
+  const load = async () => {
+    const helpers = await window.loadCardHelpers();
+    helpers.createCardElement({ type: "map", entities: [] });
+    await customElements.whenDefined("ha-map");
+  };
+  await Promise.race([load(), timeout(LOAD_TIMEOUT_MS)]);
 }
 
 export class BusMap {
@@ -92,7 +101,8 @@ export class BusMap {
     this._status = root.querySelector(".status");
     this._rows = root.querySelector(".rows");
     this._open = false;
-    this.noKey = false;
+    this._noKey = false;
+    this._generation = 0;
     this._vehicles = [];
     this._handles = [];
     this._selected = null;
@@ -105,6 +115,7 @@ export class BusMap {
 
   set sensors(ids) {
     this._sensorIds = ids;
+    this.toggle.hidden = this._noKey || ids.length === 0;
   }
 
   // Raden som visas på kartan, eller null. Nyckeln är samma som i map-model.js.
@@ -129,6 +140,8 @@ export class BusMap {
   async _setOpen(open) {
     if (open === this._open) return;
     this._open = open;
+    // En utfällning som avbryts medan ha-map laddas ska inte skapa någon karta.
+    const generation = ++this._generation;
     this._root.classList.toggle("open", open);
     this.toggle.querySelector(".label").textContent = open ? "Dölj karta" : "Visa karta";
     this._box.hidden = !open;
@@ -145,8 +158,13 @@ export class BusMap {
     this._fitted = false;
     this._answered = false;
     this._showStatus("");
-    await loadHaMap();
-    if (!this._open) return;
+    try {
+      await loadHaMap();
+    } catch {
+      if (generation === this._generation) this._showStatus(STATUS_TEXT.no_map);
+      return;
+    }
+    if (generation !== this._generation) return;
     this._createMap();
     this._feed = new VehicleFeed(this._hass.connection, (state) => this._update(state));
     this._feed.start();
@@ -156,32 +174,46 @@ export class BusMap {
     const map = document.createElement("ha-map");
     map.clickable = false;
     map.zoom = 14;
-    // ha-map signalerar att kartmotorn är klar, även efter ett byte till Leaflet-reserven.
+    // ha-map signalerar när kartmotorn är klar, även efter ett byte till Leaflet-reserven.
+    // Kommer signalen aldrig ritas bussarna som prickar via det publika spår-gränssnittet.
     map.addEventListener("editing-available-changed", () => {
-      this._handles = [];
+      clearTimeout(this._fallbackTimer);
       this._draw();
     });
+    this._fallbackTimer = setTimeout(() => {
+      this._fallback = true;
+      this._draw();
+    }, LOAD_TIMEOUT_MS);
+    this._fallback = false;
     this._box.append(map);
     this._map = map;
   }
 
   _removeMap() {
-    this._handles.forEach((h) => h.remove());
-    this._handles = [];
+    clearTimeout(this._fallbackTimer);
+    this._clearMarkers();
     this._map?.remove();
     this._map = null;
+  }
+
+  _clearMarkers() {
+    // Markörerna på en kartmotor som ha-map har bytt ut är redan borta med den.
+    if (this._map?._engine === this._handlesEngine) this._handles.forEach((h) => h.remove());
+    this._handles = [];
+    this._handlesEngine = null;
   }
 
   _update({ status, vehicles }) {
     if (status === "no_vehicle_key") {
       // Ingen nyckel för fordonspositioner: ingen karta alls.
-      this.noKey = true;
+      this._noKey = true;
       this.toggle.hidden = true;
       this._setOpen(false);
       return;
     }
     this._vehicles = vehicles;
-    this._answered = true;
+    // Medan Bussar startar finns inga bussar att zooma till ännu.
+    if (status !== "waiting") this._answered = true;
     this._showStatus(STATUS_TEXT[status] ?? "");
     this._draw();
   }
@@ -195,26 +227,29 @@ export class BusMap {
     if (!this._map) return;
     const sensors = this._sensorStates();
     const markers = vehicleMarkers(this._vehicles, sensors, Date.now());
-    // Bussarna är inga entiteter, så de läggs ut via ha-map:s kartmotor. Finns den inte
-    // (HA har ändrat den) blir bussarna prickar via det publika spår-gränssnittet.
+    // Bussarna är inga entiteter, så de läggs ut via ha-map:s kartmotor (privat API).
     const engine = this._map._engine;
     if (engine?.addMarker) {
-      this._map.paths = [];
       this._drawWithEngine(engine, sensors, markers);
-    } else {
-      this._map.paths = markers.map((m) => ({
-        name: `Linje ${m.line}`,
-        color: ZONE_HEX[m.zone] ?? NO_ZONE,
-        points: [m, m].map((p) => ({ point: [p.lat, p.lon], timestamp: new Date() })),
-      }));
+    } else if (this._fallback) {
+      this._drawAsPaths(markers);
     }
   }
 
+  // Reservläge om HA har ändrat sin kartmotor: varje buss blir ett spår med två likadana
+  // punkter, vilket ha-map ritar som en prick. Ingen hållplats, markering eller zoom här.
+  _drawAsPaths(markers) {
+    this._map.paths = markers.map((m) => ({
+      name: `Linje ${m.line}`,
+      color: ZONE_HEX[m.zone] ?? NO_ZONE,
+      points: [m, m].map((p) => ({ point: [p.lat, p.lon], timestamp: new Date() })),
+    }));
+  }
+
   _drawWithEngine(engine, sensors, markers) {
-    this._handles.forEach((h) => h.remove());
-    this._handles = [];
-    const stops = mapPoints(sensors, [], null);
-    for (const [lat, lon] of stops) {
+    this._clearMarkers();
+    this._handlesEngine = engine;
+    for (const [lat, lon] of stopPoints(sensors)) {
       this._handles.push(
         engine.addMarker(stopElement(), [lat, lon], { size: [STOP_SIZE, STOP_SIZE], interactive: false, title: "Hållplats" }),
       );
@@ -230,11 +265,13 @@ export class BusMap {
         }),
       );
     }
-    // En gång per utfällning, när Bussar har svarat första gången: hem, hållplatser och bussar.
+    // En gång per utfällning, när Bussar har svarat: hem, hållplatser och kortets bussar.
     if (!this._fitted && this._answered) {
       this._fitted = true;
-      const home = this._hass.config?.latitude !== undefined ? [this._hass.config.latitude, this._hass.config.longitude] : null;
-      engine.fitBounds(mapPoints(sensors, this._vehicles, home), FIT);
+      const { latitude, longitude } = this._hass.config ?? {};
+      const home = typeof latitude === "number" ? [latitude, longitude] : null;
+      const shown = markers.map((m) => ({ latitude: m.lat, longitude: m.lon }));
+      engine.fitBounds(mapPoints(sensors, shown, home), FIT);
     }
   }
 }

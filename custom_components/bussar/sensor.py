@@ -149,7 +149,7 @@ class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
             "following_expected": None,
         }
         if self.coordinator.stop_location is not None:
-            attrs["latitude"], attrs["longitude"] = self.coordinator.stop_location
+            attrs["stop_latitude"], attrs["stop_longitude"] = self.coordinator.stop_location
         if result is None:
             self._attr_native_value = None
             self._attr_extra_state_attributes = attrs
