@@ -45,6 +45,7 @@ class Departure:
     expected: datetime
     is_realtime: bool
     canceled: bool
+    trip_id: str | None = None
 
     @property
     def delay_minutes(self) -> int:
@@ -72,6 +73,7 @@ def parse_departures(payload: dict) -> list[Departure]:
                 expected=_parse_time(item.get("realtime") or item["scheduled"]),
                 is_realtime=bool(item.get("is_realtime")),
                 canceled=bool(item.get("canceled")),
+                trip_id=(item.get("trip") or {}).get("trip_id"),
             )
         )
     return departures

@@ -14,6 +14,14 @@
         "data": {
           "api_key": "API key"
         }
+      },
+      "reconfigure": {
+        "title": "Trafiklab keys",
+        "description": "Key for Trafiklab Realtime APIs (departures) and, optionally, GTFS Regional Realtime (bus positions for the map).",
+        "data": {
+          "api_key": "Realtime APIs key",
+          "vehicle_api_key": "GTFS Regional Realtime key (optional)"
+        }
       }
     },
     "error": {
@@ -22,7 +30,8 @@
     },
     "abort": {
       "single_instance_allowed": "Bussar is already set up. Add more lines on the integration instead.",
-      "reauth_successful": "The API key has been updated."
+      "reauth_successful": "The API key has been updated.",
+      "reconfigure_successful": "The keys have been updated."
     }
   },
   "config_subentries": {
@@ -80,6 +89,22 @@
         "cannot_connect": "Could not reach Trafiklab.",
         "already_configured": "That line and platform is already watched.",
         "reconfigure_successful": "Walking times updated."
+      }
+    }
+  },
+  "issues": {
+    "positions_quota_reached": {
+      "title": "Monthly limit for bus positions reached",
+      "description": "Bussar has made {limit} requests for bus positions this month and stops fetching them until the 1st of next month, so the Trafiklab key is not blocked. Departures and the gauges keep working."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "usage_departures": {
+        "name": "Departure requests this month"
+      },
+      "usage_positions": {
+        "name": "Position requests this month"
       }
     }
   }

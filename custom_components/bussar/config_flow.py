@@ -24,13 +24,14 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .api import TrafiklabAuthError, TrafiklabError, client_for
+from .api import TrafiklabAuthError, TrafiklabError, client_for, vehicle_client_for
 from .const import (
     CONF_LINE,
     CONF_PLATFORM,
     CONF_RUN_MINUTES,
     CONF_STOP_ID,
     CONF_STOP_NAME,
+    CONF_VEHICLE_API_KEY,
     CONF_WALK_MINUTES,
     CONF_WINDOW_MINUTES,
     DOMAIN,
@@ -91,6 +92,42 @@ class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
                     title="Trafiklab", data={CONF_API_KEY: user_input[CONF_API_KEY]}
                 )
         return self.async_show_form(step_id="user", data_schema=API_KEY_SCHEMA, errors=errors)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Byt nyckel, eller lägg till den valfria nyckeln för fordonspositioner."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = await self._validate_key(user_input[CONF_API_KEY])
+            vehicle_key = (user_input.get(CONF_VEHICLE_API_KEY) or "").strip()
+            if not errors and vehicle_key:
+                try:
+                    await vehicle_client_for(self.hass, vehicle_key).fetch()
+                except TrafiklabAuthError:
+                    errors[CONF_VEHICLE_API_KEY] = "invalid_auth"
+                except TrafiklabError:
+                    errors[CONF_VEHICLE_API_KEY] = "cannot_connect"
+            if not errors:
+                data = {CONF_API_KEY: user_input[CONF_API_KEY]}
+                if vehicle_key:
+                    data[CONF_VEHICLE_API_KEY] = vehicle_key
+                return self.async_update_reload_and_abort(entry, data=data)
+        current = user_input or entry.data
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY, default=current.get(CONF_API_KEY, "")): str,
+                    vol.Optional(
+                        CONF_VEHICLE_API_KEY,
+                        description={"suggested_value": current.get(CONF_VEHICLE_API_KEY)},
+                    ): str,
+                }
+            ),
+            errors=errors,
+        )
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         return await self.async_step_reauth_confirm()

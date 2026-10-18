@@ -14,6 +14,14 @@
         "data": {
           "api_key": "API-nyckel"
         }
+      },
+      "reconfigure": {
+        "title": "Trafiklab-nycklar",
+        "description": "Nyckel för Trafiklab Realtime APIs (avgångar) och, valfritt, GTFS Regional Realtime (bussarnas positioner för kartan).",
+        "data": {
+          "api_key": "Nyckel för Realtime APIs",
+          "vehicle_api_key": "Nyckel för GTFS Regional Realtime (valfri)"
+        }
       }
     },
     "error": {
@@ -22,7 +30,8 @@
     },
     "abort": {
       "single_instance_allowed": "Bussar är redan tillagd. Lägg till fler linjer på integrationen i stället.",
-      "reauth_successful": "API-nyckeln är uppdaterad."
+      "reauth_successful": "API-nyckeln är uppdaterad.",
+      "reconfigure_successful": "Nycklarna är uppdaterade."
     }
   },
   "config_subentries": {
@@ -80,6 +89,22 @@
         "cannot_connect": "Kunde inte nå Trafiklab.",
         "already_configured": "Den linjen och det läget bevakas redan.",
         "reconfigure_successful": "Gångtiderna är uppdaterade."
+      }
+    }
+  },
+  "issues": {
+    "positions_quota_reached": {
+      "title": "Månadsgränsen för bussarnas positioner är nådd",
+      "description": "Bussar har gjort {limit} anrop för bussarnas positioner den här månaden och slutar hämta dem till den 1:a nästa månad, så att Trafiklab-nyckeln inte spärras. Avgångar och mätare fungerar som vanligt."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "usage_departures": {
+        "name": "Anrop avgångar denna månad"
+      },
+      "usage_positions": {
+        "name": "Anrop positioner denna månad"
       }
     }
   }

@@ -306,3 +306,42 @@ async def test_run_time_longer_than_walk_time_is_rejected(hass: HomeAssistant):
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "run_longer_than_walk"}
+
+
+async def test_vehicle_key_can_be_added_by_reconfiguring(hass: HomeAssistant, aioclient_mock):
+    from custom_components.bussar.const import CONF_VEHICLE_API_KEY
+
+    from .conftest import VEHICLE_POSITIONS_URL, vehicle_positions_bytes
+
+    aioclient_mock.get(f"{STOP_LOOKUP_URL}Stockholm", json=stop_lookup_payload())
+    aioclient_mock.get(VEHICLE_POSITIONS_URL, content=vehicle_positions_bytes())
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: "secret"})
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: "secret", CONF_VEHICLE_API_KEY: "vehicles"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_VEHICLE_API_KEY] == "vehicles"
+
+
+async def test_invalid_vehicle_key_is_rejected(hass: HomeAssistant, aioclient_mock):
+    from custom_components.bussar.const import CONF_VEHICLE_API_KEY
+
+    from .conftest import VEHICLE_POSITIONS_URL
+
+    aioclient_mock.get(f"{STOP_LOOKUP_URL}Stockholm", json=stop_lookup_payload())
+    aioclient_mock.get(VEHICLE_POSITIONS_URL, status=401)
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: "secret"})
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: "secret", CONF_VEHICLE_API_KEY: "wrong"}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_VEHICLE_API_KEY: "invalid_auth"}
