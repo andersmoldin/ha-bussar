@@ -1,0 +1,18 @@
+#!/bin/sh
+# Ritar om den annoterade bilden i README (docs/manual/kort.png) från docs/manual/kort.html,
+# som laddar det riktiga kortet med påhittade sensorer. Kräver Python 3 och Chrome.
+set -eu
+cd "$(dirname "$0")/.."
+
+CHROME=${CHROME:-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}
+PORT=${PORT:-8765}
+
+python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null 2>&1 &
+SERVER=$!
+trap 'kill $SERVER' EXIT
+sleep 1
+
+"$CHROME" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+  --window-size=1280,${HEIGHT:-460} --virtual-time-budget=5000 \
+  --screenshot="$PWD/docs/manual/kort.png" "http://127.0.0.1:$PORT/docs/manual/kort.html" 2>/dev/null
+echo "docs/manual/kort.png"

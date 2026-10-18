@@ -1,0 +1,141 @@
+<!doctype html>
+<!-- Källan till docs/manual/kort.png, den annoterade bilden i README.
+     Sidan laddar det riktiga kortet (custom_components/bussar/www/bussar-card.js) med påhittade
+     sensorer och ritar numrerade röda cirklar runt kortets delar. Uppdatera bilden med
+     scripts/manual-image när kortet ändras. Bara anonymiserade exempeldata: Ort A–D, linjerna 10–40. -->
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>Bussar – annoterat kort</title>
+<style>
+  :root {
+    --primary-color: #03a9f4; --primary-text-color: #212121; --secondary-text-color: #727272;
+    --divider-color: rgba(0, 0, 0, .12); --card-background-color: #fff; --text-primary-color: #fff;
+    --success-color: #43a047; --error-color: #db4437; --warning-color: #ffa600;
+  }
+  body { margin: 0; background: #f5f5f5; font-family: Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--primary-text-color); }
+  #stage { position: relative; width: 1280px; height: 460px; }
+  bussar-card { position: absolute; left: 430px; top: 40px; display: block; width: 420px; }
+  ha-card { display: block; background: var(--card-background-color); border-radius: 12px; box-shadow: 0 2px 6px rgba(0, 0, 0, .15); overflow: hidden; }
+  .note { position: absolute; width: 340px; font-size: 14px; line-height: 1.35; }
+  .note.left { left: 30px; text-align: right; }
+  .note.right { left: 910px; }
+  .note b { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 6px;
+    border-radius: 50%; background: #d32f2f; color: #fff; font-size: 13px; vertical-align: 1px; }
+  svg { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <bussar-card></bussar-card>
+  <svg id="marks"></svg>
+</div>
+<script type="module">
+// Fast tidpunkt, så att bilden blir likadan varje gång.
+const NOW = Date.parse("2026-10-17T19:43:36+02:00");
+Date.now = () => NOW;
+
+const timing = { walk_seconds: 270, run_seconds: 120, window_seconds: 300 };
+const sensor = (line, platform, destination, expected, scheduled, following, extra = {}) => ({
+  entity_id: `sensor.${line}_lage_${platform.toLowerCase()}_ort_a`,
+  state: "0",
+  attributes: {
+    line, platform, stop_id: "1000", destination, expected, scheduled,
+    delay_minutes: Math.round((Date.parse(expected) - Date.parse(scheduled)) / 60000),
+    is_realtime: true, following_expected: following, ...timing, ...extra,
+  },
+});
+// Gott om tid och 2 min sen; gå nu och 1 min tidig; spring, enligt tidtabell.
+const sensors = [
+  sensor("10", "A", "Ort B", "2026-10-17T19:59:29+02:00", "2026-10-17T19:57:29+02:00", "2026-10-17T20:14:47+02:00"),
+  sensor("20", "B", "Ort C", "2026-10-17T19:51:06+02:00", "2026-10-17T19:52:06+02:00", "2026-10-17T20:06:00+02:00"),
+  sensor("30", "A", "Ort D", "2026-10-17T19:46:36+02:00", "2026-10-17T19:46:36+02:00", "2026-10-17T20:16:36+02:00", { is_realtime: false }),
+];
+const hass = {
+  states: Object.fromEntries(sensors.map((s) => [s.entity_id, s])),
+  config: { time_zone: "Europe/Stockholm" },
+  entities: {},
+};
+
+await import("../../custom_components/bussar/www/bussar-card.js");
+const card = document.querySelector("bussar-card");
+card.setConfig({ title: "Bussar", entities: sensors.map((s) => s.entity_id) });
+card.hass = hass;
+// Ingen nedräkning i bilden.
+card.disconnectedCallback();
+
+// [sida, rad, element, förklaring]. Raden räknas från 1; 0 är kortet självt.
+const NOTES = [
+  ["left", 1, ".badge", "Linjen."],
+  ["left", 1, ".dest", "Bussens destination."],
+  ["left", 2, ".now", "Bussens avgång som klockslag."],
+  ["left", 2, ".early", "Försening i minuter. <code>-1</code> (grön): en minut tidig. <code>+2</code> (röd): två minuter sen. Ingen siffra: i tid."],
+  ["left", 3, ".bar", "Stapeln töms mot springgränsen. Grön: gott om tid. Gul: nu passar det att gå. Orange: spring."],
+  ["right", 1, ".minutes", "Minuter tills bussen går."],
+  ["right", 1, ".next", "Klockslaget för bussen efter."],
+  ["right", 2, ".live", "Grön, pulserande punkt: tiden är realtid. Utan punkt kommer tiden från tidtabellen, som på linje 30."],
+  ["right", 0, ".toggle .label", "Fäller ut en karta med bussarna i realtid."],
+];
+
+const root = card.shadowRoot;
+// ha-card finns bara i Home Assistant. Här får den samma utseende som där.
+root.prepend(Object.assign(document.createElement("style"), {
+  textContent: "ha-card { display: block; background: var(--card-background-color); border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.15); overflow: hidden; }",
+}));
+const rows = [...root.querySelectorAll(".rows > .row")];
+const find = (row, sel) => (row === 0 ? root : rows[row - 1]).querySelector(sel);
+// Rutan runt själva texten, inte runt hela elementet (en textrad kan vara bredare än texten).
+const box = (el) => {
+  if (el.matches(".bar, .live, .badge")) return el.getBoundingClientRect();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  if (el.matches(".now")) range.setEnd(el.firstChild, el.firstChild.length);
+  return range.getBoundingClientRect();
+};
+// Vänta en bildruta, så att kortet har fått sin layout.
+await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+const stageEl = document.getElementById("stage");
+const stage = stageEl.getBoundingClientRect();
+const svg = document.getElementById("marks");
+const NS = "http://www.w3.org/2000/svg";
+const add = (tag, attrs) => {
+  const el = svg.appendChild(document.createElementNS(NS, tag));
+  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+};
+const RED = "#d32f2f";
+const PAD = 3;
+const GAP = 14;
+// Där strecken möter förklaringarna.
+const ANCHOR = { left: 380, right: 900 };
+
+const marks = NOTES.map(([side, row, sel, text], i) => {
+  const r = box(find(row, sel));
+  return { side, text, n: i + 1, x: r.left - stage.left - PAD, top: r.top - stage.top - PAD, w: r.width + 2 * PAD, h: r.height + 2 * PAD };
+});
+
+// Förklaringarna på varje sida i elementens ordning uppifrån, utan att överlappa varandra.
+for (const side of ["left", "right"]) {
+  let next = 0;
+  for (const m of marks.filter((m) => m.side === side)) {
+    const note = document.createElement("div");
+    note.className = `note ${side}`;
+    note.innerHTML = side === "left" ? `${m.text} <b>${m.n}</b>` : `<b>${m.n}</b>${m.text}`;
+    stageEl.append(note);
+    const top = Math.max(next, m.top + m.h / 2 - 11);
+    note.style.top = `${top}px`;
+    m.ny = top + 11;
+    next = top + note.offsetHeight + GAP;
+  }
+}
+
+for (const m of marks) {
+  const fromX = m.side === "left" ? m.x : m.x + m.w;
+  add("line", { x1: fromX, y1: m.top + m.h / 2, x2: ANCHOR[m.side], y2: m.ny, stroke: RED, "stroke-width": 1.2, opacity: 0.85 });
+  add("circle", { cx: ANCHOR[m.side], cy: m.ny, r: 3, fill: RED });
+  add("rect", { x: m.x, y: m.top, width: m.w, height: m.h, rx: Math.min(8, m.h / 2), fill: "none", stroke: RED, "stroke-width": 2 });
+}
+document.body.dataset.ready = "1";
+</script>
+</body>
+</html>
