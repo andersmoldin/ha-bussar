@@ -7,6 +7,7 @@ from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -314,6 +315,12 @@ async def test_rejected_vehicle_key_stops_polling_and_raises_a_repair_issue(
     assert warnings and not any("vehicles" in r.getMessage() for r in warnings)
     assert not any("opendata" in r.getMessage() for r in warnings)
 
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    assert (await client.receive_json())["success"]
+    assert (await client.receive_json())["event"] == {"vehicles": [], "error": "invalid_key"}
+    await _tick(hass, freezer, 60)
+    assert _position_calls(aioclient_mock) == 1
+
     aioclient_mock.clear_requests()
     aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", json=load_fixture("departures-stop-a.json"))
     aioclient_mock.get(f"{DEPARTURES_URL}{STOP_B_ID}", json=load_fixture("departures-stop-b.json"))
@@ -344,3 +351,56 @@ async def test_validating_a_new_vehicle_key_counts_as_a_position_request(
 
     assert _position_calls(aioclient_mock) == 1
     assert hass.states.get(positions_id).state == "1"
+
+
+async def test_successful_fetch_clears_the_rejected_key_issue(
+    hass, entry, aioclient_mock, freezer, hass_ws_client
+):
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        "positions_key_invalid",
+        is_fixable=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key="positions_key_invalid",
+    )
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    await client.receive_json()
+    await client.receive_json()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, "positions_key_invalid") is None
+
+
+async def test_subscribing_without_any_entry_is_unavailable(hass, hass_ws_client):
+    assert await async_setup_component(hass, DOMAIN, {})
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    result = await client.receive_json()
+
+    assert result["error"]["code"] == "unavailable"
+
+
+async def test_subscribing_when_setup_failed_is_unavailable(
+    hass, aioclient_mock, freezer, hass_ws_client
+):
+    await hass.config.async_set_time_zone("Europe/Stockholm")
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", status=401)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        data={CONF_API_KEY: "wrong", CONF_VEHICLE_API_KEY: "vehicles"},
+        subentries_data=[_line(STOP_A_ID, "10", "A")],
+    )
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    result = await client.receive_json()
+
+    assert result["error"]["code"] == "unavailable"

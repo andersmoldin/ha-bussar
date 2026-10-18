@@ -27,6 +27,8 @@ _LOGGER = logging.getLogger(__name__)
 POLL_INTERVAL = timedelta(seconds=10)
 QUOTA_ISSUE = "positions_quota_reached"
 
+INVALID_KEY_EVENT: dict[str, Any] = {"vehicles": [], "error": "invalid_key"}
+
 type Subscriber = Callable[[list[WatchedVehicle]], None]
 type OnClosed = Callable[[dict[str, Any]], None]
 
@@ -53,6 +55,8 @@ class VehicleTracker:
         self._next_id = 0
         self._unsub_interval: CALLBACK_TYPE | None = None
         self._polling = False
+        # Satt när nyckeln har avvisats; gäller tills posten laddas om.
+        self.key_rejected = False
 
     @callback
     def async_subscribe(self, subscriber: Subscriber, on_closed: OnClosed) -> CALLBACK_TYPE:
@@ -124,11 +128,13 @@ class VehicleTracker:
                 severity=ir.IssueSeverity.ERROR,
                 translation_key=POSITIONS_KEY_ISSUE,
             )
-            self._close({"vehicles": [], "error": "invalid_key"})
+            self.key_rejected = True
+            self._close(INVALID_KEY_EVENT)
             return
         except TrafiklabError as err:
             _LOGGER.debug("Kunde inte hämta fordonspositioner: %s", err)
             return
+        ir.async_delete_issue(self._hass, DOMAIN, POSITIONS_KEY_ISSUE)
         departures = {
             stop_id: coordinator.data or [] for stop_id, coordinator in self._coordinators.items()
         }
@@ -200,10 +206,13 @@ def ws_subscribe_vehicles(
         DOMAIN, include_ignore=False, include_disabled=False
     )
     loaded = [e for e in entries if e.state is ConfigEntryState.LOADED]
-    if not loaded and any(e.state in _COMING_UP for e in entries):
-        connection.send_error(msg["id"], "not_ready", "Bussar is still being set up")
+    if not loaded:
+        if any(e.state in _COMING_UP for e in entries):
+            connection.send_error(msg["id"], "not_ready", "Bussar is still being set up")
+        else:
+            connection.send_error(msg["id"], "unavailable", "Bussar is not running")
         return
-    tracker = loaded[0].runtime_data.tracker if loaded else None
+    tracker = loaded[0].runtime_data.tracker
     if tracker is None:
         connection.send_error(
             msg["id"], "no_vehicle_key", "No GTFS Regional Realtime key is configured"
@@ -224,4 +233,7 @@ def ws_subscribe_vehicles(
 
     # Bekräfta först, så att första positionerna inte når klienten före svaret.
     connection.send_result(msg["id"])
+    if tracker.key_rejected:
+        connection.send_message(websocket_api.event_message(msg["id"], INVALID_KEY_EVENT))
+        return
     connection.subscriptions[msg["id"]] = tracker.async_subscribe(forward, closed)
