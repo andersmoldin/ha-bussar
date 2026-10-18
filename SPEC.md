@@ -41,7 +41,7 @@ Mätaren räknar ner lokalt varje sekund och rättar sig när ny data kommer.
 ## Karta
 
 - Fälls ut under mätarna i samma kort (Visa karta/Dölj karta), 250 px hög. HA:s egen `<ha-map>`.
-- Bussar i bevakad riktning på bevakade linjer, som en cirkel med linjenumret i samma zonfärg som radens stapel
+- Bussar i bevakad riktning på bevakade linjer, som en cirkel med linjenumret i linjens färg (temats färg om ingen är vald)
 - Bevakade hållplatser
 - Zoomar en gång vid utfällning så att hem (HA:s hemposition), hållplatser och kortets bussar syns, och flyttar sig sedan aldrig själv
 - Tryck på en rad markerar radens bussar
