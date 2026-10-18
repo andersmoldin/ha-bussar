@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 
 import pytest
@@ -192,3 +193,61 @@ async def test_diagnostic_sensors_count_requests_this_month(
     await hass.async_block_till_done()
 
     assert hass.states.get(positions_id).state == "1"
+
+
+async def test_reload_tells_open_subscriptions_to_subscribe_again(
+    hass, entry, aioclient_mock, freezer, hass_ws_client
+):
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    await client.receive_json()
+    await client.receive_json()
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    event = await asyncio.wait_for(client.receive_json(), timeout=2)
+    assert event["event"] == {"vehicles": [], "resubscribe": True}
+    calls = _position_calls(aioclient_mock)
+    await _tick(hass, freezer, 60)
+    assert _position_calls(aioclient_mock) == calls
+
+
+async def test_new_month_clears_the_repair_issue_and_resets_the_usage_sensor(
+    hass, aioclient_mock, freezer, hass_ws_client, hass_storage
+):
+    hass_storage["bussar.usage"] = {
+        "version": 1,
+        "key": "bussar.usage",
+        "data": {"2026-10": {"positions": 28_000}},
+    }
+    await hass.config.async_set_time_zone("Europe/Stockholm")
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", json=load_fixture("departures-stop-a.json"))
+    aioclient_mock.get(VEHICLE_POSITIONS_URL, content=vehicle_positions_bytes())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        data={CONF_API_KEY: "secret", CONF_VEHICLE_API_KEY: "vehicles"},
+        subentries_data=[_line(STOP_A_ID, "10", "A")],
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    subscribed = await client.receive_json()
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, "positions_quota_reached") is not None
+    positions_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{entry.entry_id}_usage_positions"
+    )
+    assert hass.states.get(positions_id).state == "28000"
+    await client.send_json_auto_id({"type": "unsubscribe_events", "subscription": subscribed["id"]})
+    await client.receive_json()
+
+    freezer.move_to(datetime(2026, 11, 1, 0, 0, 30, tzinfo=TRAFIKLAB_TZ))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    assert ir.async_get(hass).async_get_issue(DOMAIN, "positions_quota_reached") is None
+    assert hass.states.get(positions_id).state == "0"

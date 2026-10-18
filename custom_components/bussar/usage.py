@@ -49,6 +49,12 @@ class UsageCounter:
         for listener in list(self._listeners):
             listener()
 
+    @callback
+    def async_notify(self) -> None:
+        """Låt lyssnare räkna om, t.ex. vid månadsskifte när antalet blir 0."""
+        for listener in list(self._listeners):
+            listener()
+
     def count(self, api: str, now: datetime) -> int:
         return self._months.get(_month(now), {}).get(api, 0)
 

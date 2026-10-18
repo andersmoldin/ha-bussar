@@ -43,7 +43,7 @@ Förhandsvisa kortet utan HA: `python3 -m http.server 8765` och öppna `http://l
 
 Kartan behöver en extra, valfri nyckel för **GTFS Regional Realtime** från samma Trafiklab-projekt. Ange den via Inställningar → Enheter och tjänster → Bussar → ⋮ → **Konfigurera om**.
 
-Positionerna hämtas **bara medan kartan visas**: kortet öppnar en prenumeration (websocket-kommandot `bussar/vehicles/subscribe`), och integrationen hämtar var 10:e sekund så länge någon prenumererar. Bara bussar på väg mot dina bevakade hållplatser i bevakad riktning skickas.
+Positionerna hämtas **bara medan kartan visas**: kortet öppnar en prenumeration (websocket-kommandot `bussar/vehicles/subscribe`), och integrationen hämtar var 10:e sekund så länge någon prenumererar. Bara bussar på väg mot dina bevakade hållplatser i bevakad riktning skickas. De kopplas via kommande avgångar, så kartan är tom på natten (23–05) när avgångar inte hämtas. Laddas integrationen om medan kartan visas ber den kortet att prenumerera igen.
 
 ## Kvoter
 

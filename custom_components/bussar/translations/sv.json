@@ -101,10 +101,12 @@
   "entity": {
     "sensor": {
       "usage_departures": {
-        "name": "Anrop avgångar denna månad"
+        "name": "Anrop avgångar denna månad",
+        "unit_of_measurement": "anrop"
       },
       "usage_positions": {
-        "name": "Anrop positioner denna månad"
+        "name": "Anrop positioner denna månad",
+        "unit_of_measurement": "anrop"
       }
     }
   }

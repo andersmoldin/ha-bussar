@@ -101,10 +101,12 @@
   "entity": {
     "sensor": {
       "usage_departures": {
-        "name": "Departure requests this month"
+        "name": "Departure requests this month",
+        "unit_of_measurement": "requests"
       },
       "usage_positions": {
-        "name": "Position requests this month"
+        "name": "Position requests this month",
+        "unit_of_measurement": "requests"
       }
     }
   }

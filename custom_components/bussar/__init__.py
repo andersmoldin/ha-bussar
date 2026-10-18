@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.typing import ConfigType
 
 from .api import client_for, vehicle_client_for
@@ -22,7 +24,7 @@ from .const import (
 from .coordinator import StopCoordinator
 from .departures import WatchedLine
 from .frontend import async_register_card
-from .positions import VehicleTracker, async_register_websocket
+from .positions import VehicleTracker, async_refresh_quota_issue, async_register_websocket
 from .usage import UsageCounter
 
 PLATFORMS = [Platform.SENSOR]
@@ -65,10 +67,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: BussarConfigEntry) -> bo
             for sub in lines
         }
         tracker = VehicleTracker(
-            hass, vehicle_client_for(hass, vehicle_key), coordinators, watched, usage
+            hass, entry, vehicle_client_for(hass, vehicle_key), coordinators, watched, usage
         )
         entry.async_on_unload(tracker.async_stop)
     entry.runtime_data = BussarData(coordinators, usage, tracker)
+
+    @callback
+    def at_midnight(now: datetime) -> None:
+        # Nollställ diagnostiksensorerna och kvotnotisen när en ny månad börjar.
+        usage.async_notify()
+        async_refresh_quota_issue(hass, usage, now)
+
+    entry.async_on_unload(async_track_time_change(hass, at_midnight, hour=0, minute=0, second=0))
     entry.async_on_unload(usage.async_save)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))

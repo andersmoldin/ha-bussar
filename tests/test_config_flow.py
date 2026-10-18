@@ -1,3 +1,6 @@
+from unittest.mock import AsyncMock, patch
+
+import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -88,6 +91,13 @@ async def test_add_watched_line_by_searching_stop_and_picking_line_and_platform(
     assert subentry.title == "10 läge A, Hållplats A (Ort)"
 
 
+@pytest.fixture
+def no_entry_setup():
+    """Flöden som avslutas med omladdning ska inte starta hela integrationen i testet."""
+    with patch("custom_components.bussar.async_setup_entry", AsyncMock(return_value=True)):
+        yield
+
+
 def _select_options(result, field: str) -> list[dict]:
     for key, validator in result["data_schema"].schema.items():
         if str(key) == field:
@@ -156,7 +166,7 @@ async def test_integration_can_only_be_added_once(hass: HomeAssistant, aioclient
     assert result["reason"] == "single_instance_allowed"
 
 
-async def test_reauth_replaces_api_key(hass: HomeAssistant, aioclient_mock):
+async def test_reauth_replaces_api_key(hass: HomeAssistant, aioclient_mock, no_entry_setup):
     aioclient_mock.get(f"{STOP_LOOKUP_URL}Stockholm", json=stop_lookup_payload())
     entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, data={CONF_API_KEY: "old"})
     entry.add_to_hass(hass)
@@ -308,7 +318,9 @@ async def test_run_time_longer_than_walk_time_is_rejected(hass: HomeAssistant):
     assert result["errors"] == {"base": "run_longer_than_walk"}
 
 
-async def test_vehicle_key_can_be_added_by_reconfiguring(hass: HomeAssistant, aioclient_mock):
+async def test_vehicle_key_can_be_added_by_reconfiguring(
+    hass: HomeAssistant, aioclient_mock, no_entry_setup
+):
     from custom_components.bussar.const import CONF_VEHICLE_API_KEY
 
     from .conftest import VEHICLE_POSITIONS_URL, vehicle_positions_bytes

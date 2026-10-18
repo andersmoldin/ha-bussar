@@ -1,0 +1,12 @@
+{
+  "entity": {
+    "sensor": {
+      "usage_departures": {
+        "default": "mdi:counter"
+      },
+      "usage_positions": {
+        "default": "mdi:counter"
+      }
+    }
+  }
+}
