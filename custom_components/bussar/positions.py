@@ -14,8 +14,8 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
-from .api import TrafiklabError, VehiclePositionsClient
-from .const import DOMAIN, POSITIONS_MONTHLY_LIMIT, USAGE_POSITIONS
+from .api import TrafiklabAuthError, TrafiklabError, VehiclePositionsClient
+from .const import DOMAIN, POSITIONS_KEY_ISSUE, POSITIONS_MONTHLY_LIMIT, USAGE_POSITIONS
 from .coordinator import StopCoordinator
 from .departures import WatchedLine
 from .schema import vol
@@ -28,7 +28,7 @@ POLL_INTERVAL = timedelta(seconds=10)
 QUOTA_ISSUE = "positions_quota_reached"
 
 type Subscriber = Callable[[list[WatchedVehicle]], None]
-type OnClosed = Callable[[], None]
+type OnClosed = Callable[[dict[str, Any]], None]
 
 
 class VehicleTracker:
@@ -81,10 +81,13 @@ class VehicleTracker:
 
         Anropas när posten laddas om eller ur, t.ex. efter ny nyckel eller ny linje.
         """
+        self._close({"vehicles": [], "resubscribe": True})
+
+    def _close(self, event: dict[str, Any]) -> None:
         self._stop_polling()
         subscribers, self._subscribers = self._subscribers, {}
         for _, on_closed in subscribers.values():
-            on_closed()
+            on_closed(event)
 
     def _stop_polling(self) -> None:
         if self._unsub_interval is not None:
@@ -109,6 +112,20 @@ class VehicleTracker:
         self._usage.record(USAGE_POSITIONS, now)
         try:
             payload = await self._client.fetch()
+        except TrafiklabAuthError as err:
+            _LOGGER.warning(
+                "Nyckeln för bussarnas positioner godkändes inte (%s); slutar hämta dem", err
+            )
+            ir.async_create_issue(
+                self._hass,
+                DOMAIN,
+                POSITIONS_KEY_ISSUE,
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key=POSITIONS_KEY_ISSUE,
+            )
+            self._close({"vehicles": [], "error": "invalid_key"})
+            return
         except TrafiklabError as err:
             _LOGGER.debug("Kunde inte hämta fordonspositioner: %s", err)
             return
@@ -160,6 +177,15 @@ def _as_json(bus: WatchedVehicle) -> dict[str, Any]:
     }
 
 
+# Posten laddas (om) eller väntar på att försöka igen: kortet kan prenumerera om en stund.
+_COMING_UP = {
+    ConfigEntryState.UNLOAD_IN_PROGRESS,
+    ConfigEntryState.NOT_LOADED,
+    ConfigEntryState.SETUP_IN_PROGRESS,
+    ConfigEntryState.SETUP_RETRY,
+}
+
+
 @callback
 def async_register_websocket(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_subscribe_vehicles)
@@ -170,10 +196,14 @@ def async_register_websocket(hass: HomeAssistant) -> None:
 def ws_subscribe_vehicles(
     hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    entries = [
-        e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED
-    ]
-    tracker = entries[0].runtime_data.tracker if entries else None
+    entries = hass.config_entries.async_entries(
+        DOMAIN, include_ignore=False, include_disabled=False
+    )
+    loaded = [e for e in entries if e.state is ConfigEntryState.LOADED]
+    if not loaded and any(e.state in _COMING_UP for e in entries):
+        connection.send_error(msg["id"], "not_ready", "Bussar is still being set up")
+        return
+    tracker = loaded[0].runtime_data.tracker if loaded else None
     if tracker is None:
         connection.send_error(
             msg["id"], "no_vehicle_key", "No GTFS Regional Realtime key is configured"
@@ -187,12 +217,10 @@ def ws_subscribe_vehicles(
         )
 
     @callback
-    def closed() -> None:
-        # Posten laddas om: kortet ska prenumerera igen mot den nya trackern.
+    def closed(event: dict[str, Any]) -> None:
+        # Posten laddas om (kortet ska prenumerera igen) eller nyckeln slutade gälla.
         connection.subscriptions.pop(msg["id"], None)
-        connection.send_message(
-            websocket_api.event_message(msg["id"], {"vehicles": [], "resubscribe": True})
-        )
+        connection.send_message(websocket_api.event_message(msg["id"], event))
 
     # Bekräfta först, så att första positionerna inte når klienten före svaret.
     connection.send_result(msg["id"])

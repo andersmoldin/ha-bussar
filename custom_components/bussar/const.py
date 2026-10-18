@@ -19,3 +19,4 @@ CONF_VEHICLE_API_KEY = "vehicle_api_key"
 POSITIONS_MONTHLY_LIMIT = 28_000
 USAGE_DEPARTURES = "departures"
 USAGE_POSITIONS = "positions"
+POSITIONS_KEY_ISSUE = "positions_key_invalid"

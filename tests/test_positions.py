@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 import pytest
-from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.config_entries import ConfigEntryState, ConfigSubentryData
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
 )
+from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMockResponse
 
 from custom_components.bussar.const import (
     CONF_LINE,
@@ -251,3 +252,95 @@ async def test_new_month_clears_the_repair_issue_and_resets_the_usage_sensor(
 
     assert ir.async_get(hass).async_get_issue(DOMAIN, "positions_quota_reached") is None
     assert hass.states.get(positions_id).state == "0"
+
+
+async def test_subscribing_while_the_entry_reloads_says_not_ready(
+    hass, entry, aioclient_mock, freezer, hass_ws_client
+):
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    await client.receive_json()
+    await client.receive_json()
+    release = asyncio.Event()
+
+    async def slow_departures(method, url, data):
+        await release.wait()
+        return AiohttpClientMockResponse(method, url, json=load_fixture("departures-stop-a.json"))
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", side_effect=slow_departures)
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_B_ID}", json=load_fixture("departures-stop-b.json"))
+    aioclient_mock.get(VEHICLE_POSITIONS_URL, content=vehicle_positions_bytes())
+    reload = hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+
+    event = await asyncio.wait_for(client.receive_json(), timeout=2)
+    assert event["event"] == {"vehicles": [], "resubscribe": True}
+    await asyncio.wait_for(_until(lambda: entry.state is ConfigEntryState.SETUP_IN_PROGRESS), 2)
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    result = await client.receive_json()
+    assert not result["success"]
+    assert result["error"]["code"] == "not_ready"
+
+    release.set()
+    assert await reload
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    assert (await client.receive_json())["success"]
+    assert "vehicles" in (await client.receive_json())["event"]
+
+
+async def _until(condition) -> None:
+    while not condition():
+        await asyncio.sleep(0)
+
+
+async def test_rejected_vehicle_key_stops_polling_and_raises_a_repair_issue(
+    hass, entry, aioclient_mock, freezer, hass_ws_client, caplog
+):
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", json=load_fixture("departures-stop-a.json"))
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_B_ID}", json=load_fixture("departures-stop-b.json"))
+    aioclient_mock.get(VEHICLE_POSITIONS_URL, status=401)
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id({"type": "bussar/vehicles/subscribe"})
+    assert (await client.receive_json())["success"]
+    event = await client.receive_json()
+    await _tick(hass, freezer, 60)
+
+    assert event["event"] == {"vehicles": [], "error": "invalid_key"}
+    assert _position_calls(aioclient_mock) == 1
+    assert ir.async_get(hass).async_get_issue(DOMAIN, "positions_key_invalid") is not None
+    warnings = [r for r in caplog.records if r.levelname == "WARNING" and "bussar" in r.name]
+    assert warnings and not any("vehicles" in r.getMessage() for r in warnings)
+    assert not any("opendata" in r.getMessage() for r in warnings)
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", json=load_fixture("departures-stop-a.json"))
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_B_ID}", json=load_fixture("departures-stop-b.json"))
+    aioclient_mock.get(VEHICLE_POSITIONS_URL, content=vehicle_positions_bytes())
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_VEHICLE_API_KEY: "new-vehicles"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["reason"] == "reconfigure_successful"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, "positions_key_invalid") is None
+
+
+async def test_validating_a_new_vehicle_key_counts_as_a_position_request(
+    hass, entry, aioclient_mock, freezer
+):
+    positions_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, f"{entry.entry_id}_usage_positions"
+    )
+    assert hass.states.get(positions_id).state == "0"
+
+    result = await entry.start_reconfigure_flow(hass)
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_VEHICLE_API_KEY: "new-vehicles"}
+    )
+    await hass.async_block_till_done()
+
+    assert _position_calls(aioclient_mock) == 1
+    assert hass.states.get(positions_id).state == "1"

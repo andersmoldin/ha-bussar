@@ -7,6 +7,7 @@ from typing import Any
 
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
@@ -14,6 +15,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -23,6 +25,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorConfig,
     SelectSelectorMode,
 )
+from homeassistant.util import dt as dt_util
 
 from .api import TrafiklabAuthError, TrafiklabError, client_for, vehicle_client_for
 from .const import (
@@ -35,7 +38,9 @@ from .const import (
     CONF_WALK_MINUTES,
     CONF_WINDOW_MINUTES,
     DOMAIN,
+    POSITIONS_KEY_ISSUE,
     SUBENTRY_LINE,
+    USAGE_POSITIONS,
 )
 from .departures import WatchedLine, line_choices, parse_departures
 from .schema import vol
@@ -96,13 +101,17 @@ class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Byt nyckel, eller lägg till den valfria nyckeln för fordonspositioner."""
+        """Lägg till, byt eller ta bort den valfria nyckeln för fordonspositioner.
+
+        Huvudnyckeln byts via reauth.
+        """
         entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
         if user_input is not None:
-            errors = await self._validate_key(user_input[CONF_API_KEY])
             vehicle_key = (user_input.get(CONF_VEHICLE_API_KEY) or "").strip()
-            if not errors and vehicle_key:
+            if vehicle_key:
+                if entry.state is ConfigEntryState.LOADED:
+                    entry.runtime_data.usage.record(USAGE_POSITIONS, dt_util.now())
                 try:
                     await vehicle_client_for(self.hass, vehicle_key).fetch()
                 except TrafiklabAuthError:
@@ -110,16 +119,16 @@ class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
                 except TrafiklabError:
                     errors[CONF_VEHICLE_API_KEY] = "cannot_connect"
             if not errors:
-                data = {CONF_API_KEY: user_input[CONF_API_KEY]}
+                data = {k: v for k, v in entry.data.items() if k != CONF_VEHICLE_API_KEY}
                 if vehicle_key:
                     data[CONF_VEHICLE_API_KEY] = vehicle_key
+                ir.async_delete_issue(self.hass, DOMAIN, POSITIONS_KEY_ISSUE)
                 return self.async_update_reload_and_abort(entry, data=data)
         current = user_input or entry.data
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_API_KEY, default=current.get(CONF_API_KEY, "")): str,
                     vol.Optional(
                         CONF_VEHICLE_API_KEY,
                         description={"suggested_value": current.get(CONF_VEHICLE_API_KEY)},

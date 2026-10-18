@@ -1,7 +1,12 @@
 from datetime import datetime
 
-from custom_components.bussar.departures import TRAFIKLAB_TZ, WatchedLine, parse_departures
-from custom_components.bussar.vehicles import parse_vehicle_positions, watched_vehicles
+from custom_components.bussar.departures import (
+    TRAFIKLAB_TZ,
+    Departure,
+    WatchedLine,
+    parse_departures,
+)
+from custom_components.bussar.vehicles import Vehicle, parse_vehicle_positions, watched_vehicles
 
 from .conftest import FIXTURES, STOP_A_ID, STOP_B_ID, load_fixture
 
@@ -47,3 +52,18 @@ def test_vehicle_that_already_passed_the_stop_is_dropped():
     later = datetime(2026, 10, 17, 19, 45, 0, tzinfo=TRAFIKLAB_TZ)
 
     assert watched_vehicles(vehicles, _departures_by_stop(), watched, now=later) == []
+
+
+def test_trip_past_two_watched_stops_is_shown_for_the_one_it_reaches_first():
+    def departure(minute: int) -> Departure:
+        at = datetime(2026, 10, 17, 19, minute, tzinfo=TRAFIKLAB_TZ)
+        return Departure("10", "A", "Ändhållplats", at, at, True, False, trip_id="tur-1")
+
+    bus = Vehicle("buss-1", "tur-1", 58.3, 19.1, None)
+    departures = {STOP_A_ID: [departure(46)], STOP_B_ID: [departure(50)]}
+    line = WatchedLine("10", "A")
+
+    for watched in ([(STOP_A_ID, line), (STOP_B_ID, line)], [(STOP_B_ID, line), (STOP_A_ID, line)]):
+        [result] = watched_vehicles([bus], departures, watched, now=RECORDED_AT)
+        assert result.stop_id == STOP_A_ID
+        assert result.expected == departures[STOP_A_ID][0].expected

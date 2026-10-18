@@ -69,7 +69,10 @@ def watched_vehicles(
     by_trip: dict[str, tuple[str, WatchedLine, Departure]] = {}
     for stop_id, line in watched:
         for d in departures_by_stop.get(stop_id, []):
-            if d.trip_id and line.matches(d) and not d.canceled and d.expected >= now:
+            if not (d.trip_id and line.matches(d) and not d.canceled and d.expected >= now):
+                continue
+            # Samma tur kan passera flera bevakade hållplatser: den närmaste gäller.
+            if d.trip_id not in by_trip or d.expected < by_trip[d.trip_id][2].expected:
                 by_trip[d.trip_id] = (stop_id, line, d)
     result = []
     for v in vehicles:

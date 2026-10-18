@@ -16,10 +16,9 @@
         }
       },
       "reconfigure": {
-        "title": "Trafiklab keys",
-        "description": "Key for Trafiklab Realtime APIs (departures) and, optionally, GTFS Regional Realtime (bus positions for the map).",
+        "title": "Key for bus positions",
+        "description": "Optional key for Trafiklab GTFS Regional Realtime (bus positions for the map). Leave empty to remove it. The Realtime APIs key is changed via reauthentication.",
         "data": {
-          "api_key": "Realtime APIs key",
           "vehicle_api_key": "GTFS Regional Realtime key (optional)"
         }
       }
@@ -31,7 +30,7 @@
     "abort": {
       "single_instance_allowed": "Bussar is already set up. Add more lines on the integration instead.",
       "reauth_successful": "The API key has been updated.",
-      "reconfigure_successful": "The keys have been updated."
+      "reconfigure_successful": "The key has been updated."
     }
   },
   "config_subentries": {
@@ -96,6 +95,10 @@
     "positions_quota_reached": {
       "title": "Monthly limit for bus positions reached",
       "description": "Bussar has made {limit} requests for bus positions this month and stops fetching them until the 1st of next month, so the Trafiklab key is not blocked. Departures and the gauges keep working."
+    },
+    "positions_key_invalid": {
+      "title": "The key for bus positions does not work",
+      "description": "Trafiklab rejected the GTFS Regional Realtime key, so Bussar has stopped fetching bus positions. Reconfigure the integration with a valid key. Departures and the gauges keep working."
     }
   },
   "entity": {
