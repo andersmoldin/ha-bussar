@@ -5,20 +5,35 @@ import { VehicleFeed } from "../../custom_components/bussar/www/map-model.js";
 
 // Falsk HA-anslutning med samma subscribeMessage som home-assistant-js-websocket:
 // ett lyckat svar ger en avprenumerationsfunktion, ett felsvar avvisas med { code }.
+// reconnect() gör som biblioteket vid en återanslutning: prenumerationer utan
+// resubscribe: false skickas om tyst (ett felsvar försvinner), sedan kommer "ready"
+// till lyssnarna i samma lista som biblioteket använder.
 function fakeConnection() {
   const subs = [];
-  return {
+  const listeners = [];
+  const conn = {
     subs,
-    subscribeMessage(callback, message) {
+    staleUnsubscribes: 0,
+    listeners,
+    addEventListener: (type, fn) => type === "ready" && listeners.push(fn),
+    removeEventListener(type, fn) {
+      const index = listeners.indexOf(fn);
+      if (type === "ready" && index !== -1) listeners.splice(index, 1);
+    },
+    subscribeMessage(callback, message, options) {
       let settle;
       const promise = new Promise((resolve, reject) => (settle = { resolve, reject }));
       const sub = {
         message,
+        options,
+        callback,
         active: false,
+        dead: false,
         send: (event) => callback(event),
         accept() {
           sub.active = true;
           settle.resolve(async () => {
+            if (sub.dead) conn.staleUnsubscribes += 1;
             sub.active = false;
           });
         },
@@ -27,10 +42,19 @@ function fakeConnection() {
       subs.push(sub);
       return promise;
     },
+    reconnect() {
+      const old = subs.filter((sub) => sub.active);
+      old.forEach((sub) => Object.assign(sub, { active: false, dead: true }));
+      old
+        .filter((sub) => sub.options?.resubscribe !== false)
+        .forEach((sub) => conn.subscribeMessage(sub.callback, sub.message, sub.options).catch(() => {}));
+      listeners.forEach((fn) => fn());
+    },
     get latest() {
       return subs[subs.length - 1];
     },
   };
+  return conn;
 }
 
 // Timer som testet själv stegar fram.
@@ -171,5 +195,45 @@ test("invalid_key: visar felet och försöker inte igen", async () => {
   timers.runAll();
 
   assert.deepEqual(last(), { status: "invalid_key", vehicles: [] });
+  assert.equal(conn.subs.length, 1);
+});
+
+test("återanslutning medan Bussar laddas: väntar och försöker igen", async () => {
+  const conn = fakeConnection();
+  const timers = fakeTimers();
+  const { feed, last } = feedWith(conn, timers);
+  feed.start();
+  let othersNotified = 0;
+  conn.addEventListener("ready", () => (othersNotified += 1));
+  conn.latest.accept();
+  conn.latest.send({ vehicles: [bus] });
+  await flush();
+
+  conn.reconnect();
+  assert.equal(othersNotified, 1);
+  conn.latest.fail("not_ready");
+  await flush();
+  assert.deepEqual(last(), { status: "waiting", vehicles: [] });
+
+  timers.runAll();
+  conn.latest.accept();
+  conn.latest.send({ vehicles: [bus] });
+  await flush();
+  assert.deepEqual(last(), { status: "live", vehicles: [bus] });
+  assert.equal(conn.subs.filter((sub) => sub.active).length, 1);
+  assert.equal(conn.staleUnsubscribes, 0);
+});
+
+test("återanslutning med hopfälld karta: ingen ny prenumeration", async () => {
+  const conn = fakeConnection();
+  const { feed } = feedWith(conn);
+  feed.start();
+  conn.latest.accept();
+  await flush();
+  feed.stop();
+  await flush();
+
+  conn.reconnect();
+
   assert.equal(conn.subs.length, 1);
 });

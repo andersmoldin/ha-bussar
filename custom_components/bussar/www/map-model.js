@@ -52,15 +52,28 @@ export class VehicleFeed {
     this._connection = connection;
     this._onChange = onChange;
     this._timers = timers;
+    // Efter en återanslutning finns den gamla prenumerationen inte längre. Prenumerera igen
+    // själv, så att not_ready ger ett nytt försök även då.
+    this._reconnected = () => {
+      this._unsubscribe = null;
+      this._cancel();
+      this._subscribe();
+    };
   }
 
   start() {
     this.stop();
+    this._connection.addEventListener("ready", this._reconnected);
     this._subscribe();
   }
 
   stop() {
-    // Ett svar som kommer efter stop() hör till en gammal prenumeration och avslutas direkt.
+    this._connection.removeEventListener("ready", this._reconnected);
+    this._cancel();
+  }
+
+  _cancel() {
+    // Ett svar som kommer efter _cancel() hör till en gammal prenumeration och avslutas direkt.
     this._generation = (this._generation ?? 0) + 1;
     this._timers.clearTimeout(this._retry);
     this._retry = null;
@@ -74,7 +87,7 @@ export class VehicleFeed {
     try {
       unsubscribe = await this._connection.subscribeMessage((event) => {
         if (generation === this._generation) this._event(event);
-      }, SUBSCRIBE);
+      }, SUBSCRIBE, { resubscribe: false });
     } catch (err) {
       if (generation === this._generation) this._failed(err?.code);
       return;
