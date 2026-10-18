@@ -9,10 +9,11 @@ PORT=${PORT:-8765}
 
 python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null 2>&1 &
 SERVER=$!
-trap 'kill $SERVER' EXIT
+trap 'kill $SERVER 2>/dev/null' EXIT
 sleep 1
+kill -0 "$SERVER" 2>/dev/null || { echo "Kunde inte starta servern: port $PORT är upptagen? Välj en annan med PORT=..." >&2; exit 1; }
 
 "$CHROME" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
-  --window-size=1280,${HEIGHT:-460} --virtual-time-budget=5000 \
+  --window-size=1280,460 --virtual-time-budget=5000 \
   --screenshot="$PWD/docs/manual/kort.png" "http://127.0.0.1:$PORT/docs/manual/kort.html" 2>/dev/null
 echo "docs/manual/kort.png"

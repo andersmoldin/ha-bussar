@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- Källan till docs/manual/kort.png, den annoterade bilden i README.
      Sidan laddar det riktiga kortet (custom_components/bussar/www/bussar-card.js) med påhittade
-     sensorer och ritar numrerade röda cirklar runt kortets delar. Uppdatera bilden med
+     sensorer och ritar numrerade röda markeringar runt kortets delar. Uppdatera bilden med
      scripts/manual-image när kortet ändras. Bara anonymiserade exempeldata: Ort A–D, linjerna 10–40. -->
 <html lang="sv">
 <head>
@@ -16,7 +16,6 @@
   body { margin: 0; background: #f5f5f5; font-family: Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--primary-text-color); }
   #stage { position: relative; width: 1280px; height: 460px; }
   bussar-card { position: absolute; left: 430px; top: 40px; display: block; width: 420px; }
-  ha-card { display: block; background: var(--card-background-color); border-radius: 12px; box-shadow: 0 2px 6px rgba(0, 0, 0, .15); overflow: hidden; }
   .note { position: absolute; width: 340px; font-size: 14px; line-height: 1.35; }
   .note.left { left: 30px; text-align: right; }
   .note.right { left: 910px; }
@@ -64,17 +63,19 @@ card.hass = hass;
 // Ingen nedräkning i bilden.
 card.disconnectedCallback();
 
-// [sida, rad, element, förklaring]. Raden räknas från 1; 0 är kortet självt.
+// [sida, rad, element, väg ut, förklaring]. Raden räknas från 1; 0 är kortet självt.
+// Vägen ut ur kortet korsar ingen text: "side" går vågrätt mot förklaringens sida, "up" och "down" lodrätt.
+// Förklaringarna står på varje sida i den ordning strecken lämnar kortet, uppifrån.
 const NOTES = [
-  ["left", 1, ".badge", "Linjen, i linjens färg. Färgen väljs under <i>⋮ → Ändra gångtider och färg</i>. Utan vald färg: temats färg (som linje 30)."],
-  ["left", 1, ".dest", "Bussens destination."],
-  ["left", 2, ".now", "Bussens avgång som klockslag."],
-  ["left", 2, ".early", "Försening i minuter. <code>-1</code> (grön): en minut tidig. <code>+2</code> (röd): två minuter sen. Ingen siffra: i tid."],
-  ["left", 3, ".bar", "Stapeln töms mot springgränsen. Grön: gott om tid. Gul: nu passar det att gå. Orange: spring."],
-  ["right", 1, ".minutes", "Minuter tills bussen går."],
-  ["right", 1, ".next", "Klockslaget för bussen efter."],
-  ["right", 2, ".live", "Grön, pulserande punkt: tiden är realtid. Utan punkt kommer tiden från tidtabellen, som på linje 30."],
-  ["right", 0, ".toggle .label", "Fäller ut en karta med bussarna i realtid."],
+  ["left", 1, ".dest", "up", "Bussens destination."],
+  ["left", 1, ".badge", "side", "Linjen, i linjens färg. Färgen väljs under <i>⋮ → Ändra gångtider och färg</i>. Utan vald färg: temats färg (som linje 30)."],
+  ["left", 1, ".bar", "side", "Stapeln töms mot springgränsen. Grön: gott om tid. Gul: nu passar det att gå. Orange: spring."],
+  ["left", 3, ".now", "down", "Bussens avgång som klockslag."],
+  ["left", 2, ".early", "down", "Försening i minuter. <code>-1</code> (grön): en minut tidig. <code>+2</code> (röd): två minuter sen. Ingen siffra: i tid."],
+  ["right", 1, ".live", "up", "Grön, pulserande punkt: tiden är realtid. Utan punkt kommer tiden från tidtabellen, som på linje 30."],
+  ["right", 2, ".minutes", "side", "Minuter tills bussen går."],
+  ["right", 3, ".next", "side", "Klockslaget för bussen efter."],
+  ["right", 0, ".toggle", "side", "Fäller ut en karta med bussarna i realtid."],
 ];
 
 const root = card.shadowRoot;
@@ -106,15 +107,20 @@ const add = (tag, attrs) => {
 const RED = "#d32f2f";
 const PAD = 3;
 const GAP = 14;
-// Där strecken möter förklaringarna.
+// Där strecken möter förklaringarna, och hur långt utanför kortet de viker av.
 const ANCHOR = { left: 380, right: 900 };
+const OUT = 12;
+const c = root.querySelector("ha-card").getBoundingClientRect();
+const cardRect = { left: c.left - stage.left, right: c.right - stage.left, top: c.top - stage.top, bottom: c.bottom - stage.top };
 
-const marks = NOTES.map(([side, row, sel, text], i) => {
+const marks = NOTES.map(([side, row, sel, exit, text], i) => {
   const r = box(find(row, sel));
-  return { side, text, n: i + 1, x: r.left - stage.left - PAD, top: r.top - stage.top - PAD, w: r.width + 2 * PAD, h: r.height + 2 * PAD };
+  const m = { side, exit, text, n: i + 1, x: r.left - stage.left - PAD, top: r.top - stage.top - PAD, w: r.width + 2 * PAD, h: r.height + 2 * PAD };
+  m.y = { side: m.top + m.h / 2, up: cardRect.top - OUT, down: cardRect.bottom + OUT }[exit];
+  return m;
 });
 
-// Förklaringarna på varje sida i elementens ordning uppifrån, utan att överlappa varandra.
+// Förklaringarna på varje sida i NOTES ordning, så nära sitt streck som möjligt utan att överlappa varandra.
 for (const side of ["left", "right"]) {
   let next = 0;
   for (const m of marks.filter((m) => m.side === side)) {
@@ -122,7 +128,7 @@ for (const side of ["left", "right"]) {
     note.className = `note ${side}`;
     note.innerHTML = side === "left" ? `${m.text} <b>${m.n}</b>` : `<b>${m.n}</b>${m.text}`;
     stageEl.append(note);
-    const top = Math.max(next, m.top + m.h / 2 - 11);
+    const top = Math.max(next, m.y - 11);
     note.style.top = `${top}px`;
     m.ny = top + 11;
     next = top + note.offsetHeight + GAP;
@@ -130,12 +136,21 @@ for (const side of ["left", "right"]) {
 }
 
 for (const m of marks) {
-  const fromX = m.side === "left" ? m.x : m.x + m.w;
-  add("line", { x1: fromX, y1: m.top + m.h / 2, x2: ANCHOR[m.side], y2: m.ny, stroke: RED, "stroke-width": 1.2, opacity: 0.85 });
-  add("circle", { cx: ANCHOR[m.side], cy: m.ny, r: 3, fill: RED });
+  const anchor = ANCHOR[m.side];
+  let points;
+  if (m.exit === "side") {
+    const fromX = m.side === "left" ? m.x : m.x + m.w;
+    const outX = m.side === "left" ? cardRect.left - OUT : cardRect.right + OUT;
+    points = [[fromX, m.y], [outX, m.y], [anchor, m.ny]];
+  } else {
+    const cx = m.x + m.w / 2;
+    const fromY = m.exit === "up" ? m.top : m.top + m.h;
+    points = [[cx, fromY], [cx, m.ny], [anchor, m.ny]];
+  }
+  add("polyline", { points: points.join(" "), fill: "none", stroke: RED, "stroke-width": 1.2, opacity: 0.85 });
+  add("circle", { cx: anchor, cy: m.ny, r: 3, fill: RED });
   add("rect", { x: m.x, y: m.top, width: m.w, height: m.h, rx: Math.min(8, m.h / 2), fill: "none", stroke: RED, "stroke-width": 2 });
 }
-document.body.dataset.ready = "1";
 </script>
 </body>
 </html>
