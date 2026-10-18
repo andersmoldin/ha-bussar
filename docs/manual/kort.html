@@ -47,8 +47,8 @@ const sensor = (line, platform, destination, expected, scheduled, following, ext
 });
 // Gott om tid och 2 min sen; gå nu och 1 min tidig; spring, enligt tidtabell.
 const sensors = [
-  sensor("10", "A", "Ort B", "2026-10-17T19:59:29+02:00", "2026-10-17T19:57:29+02:00", "2026-10-17T20:14:47+02:00"),
-  sensor("20", "B", "Ort C", "2026-10-17T19:51:06+02:00", "2026-10-17T19:52:06+02:00", "2026-10-17T20:06:00+02:00"),
+  sensor("10", "A", "Ort B", "2026-10-17T19:59:29+02:00", "2026-10-17T19:57:29+02:00", "2026-10-17T20:14:47+02:00", { line_color: "#2e7d32" }),
+  sensor("20", "B", "Ort C", "2026-10-17T19:51:06+02:00", "2026-10-17T19:52:06+02:00", "2026-10-17T20:06:00+02:00", { line_color: "#757575" }),
   sensor("30", "A", "Ort D", "2026-10-17T19:46:36+02:00", "2026-10-17T19:46:36+02:00", "2026-10-17T20:16:36+02:00", { is_realtime: false }),
 ];
 const hass = {
@@ -66,7 +66,7 @@ card.disconnectedCallback();
 
 // [sida, rad, element, förklaring]. Raden räknas från 1; 0 är kortet självt.
 const NOTES = [
-  ["left", 1, ".badge", "Linjen."],
+  ["left", 1, ".badge", "Linjen, i linjens färg. Färgen väljs under <i>⋮ → Ändra gångtider och färg</i>. Utan vald färg: temats färg (som linje 30)."],
   ["left", 1, ".dest", "Bussens destination."],
   ["left", 2, ".now", "Bussens avgång som klockslag."],
   ["left", 2, ".early", "Försening i minuter. <code>-1</code> (grön): en minut tidig. <code>+2</code> (röd): två minuter sen. Ingen siffra: i tid."],

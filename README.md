@@ -2,6 +2,33 @@
 
 Visar när nästa buss går från dina hållplatser, med realtid från [Trafiklab](https://www.trafiklab.se). Data: Trafiklab, CC BY 4.0.
 
+## Manual
+
+1. **Installera** Bussar via HACS och lägg till integrationen med din Trafiklab-nyckel (se [Installera](#installera)).
+2. **Lägg till linjer:** på integrationen, **Lägg till bevakad linje** → sök hållplats → välj linje och läge (läget anger riktningen).
+3. **Lägg till kortet:** redigera en dashboard → **Lägg till kort** → **Bussar**.
+4. **Ändra gångtider och färg:** på den bevakade linjen, **⋮ → Ändra gångtider och färg**.
+
+![Bussar-kortet med numrerade förklaringar](docs/manual/kort.png)
+
+### Zoner och tider
+
+Varje linje har tre tider, i minuter:
+
+- **Gångtid** (4,5): hur lång tid det tar att gå från dörren till hållplatsen.
+- **Springtid** (2): hur lång tid det tar om du springer.
+- **Fönster** (5): hur länge kortet visar *nu passar det att gå* innan det är dags.
+
+De ger tre zoner, som stapeln visar med färg:
+
+| Zon | Färg | När |
+|---|---|---|
+| Gott om tid | Grön | Mer än gångtid + fönster kvar |
+| Nu passar det att gå | Gul | Mellan gångtiden och gångtid + fönster |
+| Spring | Orange | Mellan springtiden och gångtiden |
+
+Med mindre än springtiden kvar går bussen inte att hinna, och kortet visar nästa buss i stället.
+
 ## Installera
 
 1. HACS → ⋮ → **Custom repositories** → lägg till `https://github.com/andersmoldin/ha-bussar`, typ **Integration**.
@@ -40,6 +67,8 @@ entities:
 Varje rad visar linje och destination med aktuell avgång under (`23:40 +2`), och till höger minuter kvar med nästa buss under (`nästa 23:55`). Linjebrickan har linjens valda färg med vit eller svart text, eller temats färg om ingen färg är vald. Stapeln töms mot springgränsen och är grön (gott om tid), gul (nu passar det att gå) eller orange (spring). En pulserande grön punkt betyder realtid. Kortet räknar ner varje sekund och byter till nästa buss vid springgränsen.
 
 Med **Visa karta** fälls en karta ut under raderna (kräver nyckeln för positioner, se nedan). Varje buss är en cirkel i linjens färg (temats färg om ingen är vald), med linjenumret inuti, och hållplatserna är ringar. Kartan zoomar en gång när den fälls ut, till hemmet, hållplatserna och kortets bussar, och flyttar sig sedan inte själv. Tryck på en rad för att markera radens bussar. Utan positionsnyckel försvinner knappen vid första försöket. Kartan är HA:s egen, och därför kräver Bussar Home Assistant 2026.10 eller senare.
+
+Bilden i manualen ritas om med `scripts/manual-image` (källa: `docs/manual/kort.html`, kräver Chrome) när kortet ändras.
 
 Förhandsvisa kortet utan HA: `python3 -m http.server 8765` och öppna `http://localhost:8765/tests/js/preview.html?theme=dark`.
 
