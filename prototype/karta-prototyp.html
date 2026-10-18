@@ -1,0 +1,257 @@
+<!doctype html>
+<!-- PROTOTYP för issue #7 – slängkod. Tre varianter av kartan i Bussar-kortet, växla med ?variant=A|B|C
+     eller pilarna längst ned. Utfällbar karta under raderna, 250 px, automatisk zoom.
+     Bakgrunden är OpenFreeMap (vektorkarta, OSM) som stand-in för HA:s nya ha-map. Platsen och linjerna är påhittade. -->
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bussar-karta – prototyp</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<style>
+  :root { --primary-color:#03a9f4; --primary-text-color:#212121; --secondary-text-color:#727272; --divider-color:rgba(0,0,0,.12);
+    --card-background-color:#fff; --page:#fafafa; --success-color:#43a047; --error-color:#db4437; --warning-color:#ffa600; }
+  body.dark { --primary-text-color:#e1e1e1; --secondary-text-color:#9b9b9b; --divider-color:rgba(255,255,255,.12);
+    --card-background-color:#1c1c1c; --page:#111; }
+  body { margin:0; padding:16px 12px 90px; background:var(--page); color:var(--primary-text-color);
+    font-family:Roboto, system-ui, sans-serif; transition: background .3s; }
+  .note { max-width:420px; margin:0 auto 12px; font-size:13px; color:var(--secondary-text-color); line-height:1.4; }
+  ha-card { display:block; max-width:420px; margin:0 auto; background:var(--card-background-color); border-radius:12px;
+    box-shadow:0 2px 6px rgba(0,0,0,.15); overflow:hidden; }
+  .title { padding:14px 16px 4px; font-size:18px; }
+  .row { padding:12px 16px; border-top:1px solid var(--divider-color); display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto; gap:4px 12px; align-items:center; cursor:default; }
+  .rows > .row:first-child { border-top:0; }
+  .row.sel { background: color-mix(in srgb, var(--primary-color) 12%, transparent); }
+  .badge { display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:28px; padding:0 8px;
+    border-radius:8px; font-weight:700; font-size:15px; color:#fff; background:var(--lc, var(--primary-color)); }
+  .left,.right { line-height:1.15; min-width:0; } .right { text-align:right; }
+  .dest { display:block; font-size:15px; } .min { display:block; font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .sub { display:block; font-size:13px; color:var(--secondary-text-color); }
+  .late { color:var(--error-color); font-weight:600; }
+  .live { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:3px;
+    background:var(--success-color); animation:pulse 2s infinite; } @keyframes pulse { 50% { opacity:.35; } }
+  .bar { grid-column:1/-1; height:10px; border-radius:5px; overflow:hidden; background:color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
+  .fill { height:100%; border-radius:5px; background:var(--zc); transition:width .9s linear; }
+  .plenty { --zc:#43a047; } .go { --zc:#f4c20d; } .run { --zc:#ffa600; }
+
+  .toggle { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:10px; border:0;
+    border-top:1px solid var(--divider-color); background:none; color:var(--primary-color); font:500 14px Roboto, system-ui; cursor:pointer; }
+  .toggle .chev { transition:transform .25s; } .open .toggle .chev { transform:rotate(180deg); }
+  .mapwrap { height:0; overflow:hidden; transition:height .3s ease; position:relative; }
+  .open .mapwrap { height:250px; }
+  #map { position:absolute; inset:0; }
+  .status { position:absolute; right:8px; top:8px; z-index:2; font-size:11px; padding:2px 6px; border-radius:6px;
+    background:color-mix(in srgb, var(--card-background-color) 85%, transparent); color:var(--secondary-text-color); }
+
+  /* Markörer */
+  .stop { width:14px; height:14px; border-radius:50%; background:var(--card-background-color); border:3px solid var(--primary-text-color); box-sizing:border-box; }
+  .stoplabel { font:600 11px Roboto, system-ui; padding:1px 5px; border-radius:5px; background:var(--card-background-color); color:var(--primary-text-color); box-shadow:0 1px 3px rgba(0,0,0,.3); white-space:nowrap; transform:translateY(-16px); }
+  .busA { position:relative; width:30px; height:30px; }
+  .busA .arrow { position:absolute; inset:-9px; }
+  .busA .chip { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; border-radius:8px;
+    background:var(--lc); color:#fff; font:700 13px Roboto, system-ui; box-shadow:0 1px 4px rgba(0,0,0,.4); border:2px solid #fff; box-sizing:border-box; }
+  .busB { width:20px; height:20px; border-radius:50%; background:#fff; border:3px solid var(--lc); box-sizing:border-box;
+    display:flex; align-items:center; justify-content:center; font:700 9px Roboto, system-ui; color:#222; box-shadow:0 1px 3px rgba(0,0,0,.4); }
+  .busC { width:16px; height:16px; border-radius:50%; background:var(--zc); border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4); transition: transform .2s; }
+  .busC.sel { transform:scale(1.6); }
+  .busC .tag { position:absolute; left:18px; top:-3px; font:700 11px Roboto, system-ui; color:var(--primary-text-color);
+    background:var(--card-background-color); padding:0 4px; border-radius:4px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,.3); }
+
+  /* Prototyp-växlaren */
+  .switch { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:10; display:flex; align-items:center; gap:4px;
+    background:#111; color:#fff; border-radius:999px; padding:6px; box-shadow:0 4px 14px rgba(0,0,0,.4); font:500 14px system-ui; }
+  .switch button { background:#333; color:#fff; border:0; border-radius:999px; min-width:38px; height:38px; font-size:16px; cursor:pointer; }
+  .switch .lbl { padding:0 10px; white-space:nowrap; }
+  .state { max-width:420px; margin:12px auto 0; font:12px ui-monospace, monospace; color:var(--secondary-text-color); white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<p class="note" id="note"></p>
+<ha-card id="card">
+  <div class="title">Bussar</div>
+  <div class="rows" id="rows"></div>
+  <button class="toggle" id="toggle"><span id="tlabel">Visa karta</span> <span class="chev">▾</span></button>
+  <div class="mapwrap"><div id="map"></div><div class="status" id="status"></div></div>
+</ha-card>
+<div class="state" id="state"></div>
+
+<div class="switch">
+  <button id="prev" aria-label="Föregående">←</button>
+  <span class="lbl" id="vlabel"></span>
+  <button id="next" aria-label="Nästa">→</button>
+  <button id="dark" aria-label="Mörkt läge" title="Mörkt läge">◐</button>
+</div>
+
+<script>
+const VARIANTS = {
+  A: { name: "Utan sträckning – linjebrickor", note: "Bussarna är linjebrickor i linjens färg med en pil för färdriktningen. Inga linjer ritas." },
+  B: { name: "Med sträckning", note: "Varje bevakad linje ritas i sin färg, och bussarna är små prickar på linjen. Sträckningarna här är påhittade raka streck. På riktigt följer de vägarna (kräver statisk GTFS)." },
+  C: { name: "Utan sträckning – zonfärg", note: "Pricken har samma färg som stapeln (gott om tid/gå/spring). Tryck på en rad för att markera bussen på kartan." },
+};
+const keys = Object.keys(VARIANTS);
+let variant = new URLSearchParams(location.search).get("variant") ?? "A";
+if (!VARIANTS[variant]) variant = "A";
+
+// Påhittad plats (ingen koppling till användaren). Hållplats Ort A i mitten.
+const STOP = [11.9746, 57.7089];
+const LINES = {
+  10: { color: "#1e88e5", dest: "Ort B", route: [[11.940,57.722],[11.952,57.716],[11.962,57.712],STOP] },
+  20: { color: "#8e24aa", dest: "Ort C", route: [[12.010,57.725],[11.995,57.718],[11.984,57.712],STOP] },
+  30: { color: "#e53935", dest: "Ort D", route: [[11.990,57.690],[11.983,57.697],[11.978,57.703],STOP] },
+};
+// En buss per linje; t = andel av sträckan, v = andel per sekund.
+const buses = [
+  { line: 10, t: 0.25, v: 0.006, zone: "plenty", min: 9 },
+  { line: 20, t: 0.55, v: 0.008, zone: "go", min: 5 },
+  { line: 30, t: 0.80, v: 0.007, zone: "run", min: 2 },
+];
+let selected = null;
+
+function along(route, t) {
+  const seg = [];
+  let total = 0;
+  for (let i = 1; i < route.length; i++) { const d = Math.hypot(route[i][0]-route[i-1][0], route[i][1]-route[i-1][1]); seg.push(d); total += d; }
+  let dist = Math.min(t, 0.999) * total;
+  for (let i = 0; i < seg.length; i++) {
+    if (dist <= seg[i]) {
+      const f = dist / seg[i], a = route[i], b = route[i+1];
+      const bearing = (Math.atan2((b[0]-a[0]) * Math.cos(a[1]*Math.PI/180), b[1]-a[1]) * 180 / Math.PI + 360) % 360;
+      return { pos: [a[0] + (b[0]-a[0])*f, a[1] + (b[1]-a[1])*f], bearing };
+    }
+    dist -= seg[i];
+  }
+  return { pos: STOP, bearing: 0 };
+}
+
+// --- Raderna (samma utseende som kortet i v0.3.0) ---
+function renderRows() {
+  const rows = document.getElementById("rows");
+  rows.innerHTML = "";
+  for (const b of buses) {
+    const L = LINES[b.line];
+    const el = document.createElement("div");
+    el.className = `row ${b.zone}` + (selected === b.line ? " sel" : "");
+    el.style.setProperty("--lc", variant === "C" ? "var(--primary-color)" : L.color);
+    el.innerHTML = `<span class="badge">${b.line}</span>
+      <span class="left"><span class="dest">${L.dest}</span><span class="sub">14:${String(20+b.min).padStart(2,"0")}${b.line===20?' <span class="late">+2</span>':''}</span></span>
+      <span class="right"><span class="min"><span class="live"></span>${b.min} min</span><span class="sub">sedan 14:${String(40+b.min).padStart(2,"0")}</span></span>
+      <div class="bar"><div class="fill" style="width:${Math.max(5, 100 - b.min*9)}%"></div></div>`;
+    if (variant === "C") { el.style.cursor = "pointer"; el.onclick = () => { selected = selected === b.line ? null : b.line; renderRows(); drawBuses(); }; }
+    rows.append(el);
+  }
+}
+
+// --- Kartan ---
+let map, markers = [], dark = false, open = false, timer = null;
+const STYLE = () => `https://tiles.openfreemap.org/styles/${dark ? "dark" : "positron"}`;
+
+function ensureMap() {
+  if (map) return;
+  map = new maplibregl.Map({ container: "map", style: STYLE(), center: STOP, zoom: 14, attributionControl: { compact: true } });
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+  map.on("style.load", () => { drawRoutes(); });
+  const stopEl = document.createElement("div"); stopEl.className = "stop";
+  new maplibregl.Marker({ element: stopEl }).setLngLat(STOP).addTo(map);
+  const lab = document.createElement("div"); lab.className = "stoplabel"; lab.textContent = "Ort A";
+  new maplibregl.Marker({ element: lab, anchor: "bottom" }).setLngLat(STOP).addTo(map);
+}
+
+function drawRoutes() {
+  for (const id of Object.keys(LINES)) {
+    if (map.getLayer(`r${id}`)) map.removeLayer(`r${id}`);
+    if (map.getSource(`r${id}`)) map.removeSource(`r${id}`);
+  }
+  if (variant !== "B") return;
+  for (const [id, L] of Object.entries(LINES)) {
+    map.addSource(`r${id}`, { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: L.route } } });
+    map.addLayer({ id: `r${id}`, type: "line", source: `r${id}`, paint: { "line-color": L.color, "line-width": 4, "line-opacity": .75 }, layout: { "line-cap": "round", "line-join": "round" } });
+  }
+}
+
+function busEl(b, bearing) {
+  const L = LINES[b.line];
+  const el = document.createElement("div");
+  el.style.setProperty("--lc", L.color);
+  if (variant === "A") {
+    el.className = "busA";
+    el.innerHTML = `<svg class="arrow" viewBox="0 0 48 48" style="transform:rotate(${bearing}deg)"><path d="M24 1 L31 9 L17 9 Z" fill="${L.color}" stroke="#fff" stroke-width="1.5"/></svg><div class="chip">${b.line}</div>`;
+  } else if (variant === "B") {
+    el.className = "busB"; el.textContent = b.line;
+  } else {
+    el.className = `busC ${b.zone}` + (selected === b.line ? " sel" : "");
+    el.innerHTML = selected === b.line ? `<span class="tag">${b.line} · ${b.min} min</span>` : "";
+  }
+  el.title = `Linje ${b.line} mot ${L.dest}, ${b.min} min`;
+  return el;
+}
+
+function drawBuses(fit) {
+  if (!map) return;
+  markers.forEach((m) => m.remove()); markers = [];
+  const pts = [STOP];
+  for (const b of buses) {
+    const { pos, bearing } = along(LINES[b.line].route, b.t);
+    markers.push(new maplibregl.Marker({ element: busEl(b, bearing) }).setLngLat(pos).addTo(map));
+    pts.push(pos);
+  }
+  if (fit) {
+    const bounds = pts.reduce((bb, p) => bb.extend(p), new maplibregl.LngLatBounds(pts[0], pts[0]));
+    map.fitBounds(bounds, { padding: 48, maxZoom: 16, duration: fit === "jump" ? 0 : 600 });
+  }
+  document.getElementById("status").textContent = `${buses.length} bussar · uppdaterad nyss`;
+  showState();
+}
+
+// Simulerar prenumerationen: positioner var 10:e sekund (här snabbare, var 2:a, för att se rörelse).
+function tick() {
+  for (const b of buses) { b.t += b.v * 2; if (b.t >= 1) b.t = 0.05; }
+  drawBuses(true);
+}
+
+function setOpen(v) {
+  open = v;
+  document.getElementById("card").classList.toggle("open", open);
+  document.getElementById("tlabel").textContent = open ? "Dölj karta" : "Visa karta";
+  if (open) {
+    ensureMap();
+    setTimeout(() => { map.resize(); drawBuses("jump"); }, 320);
+    timer = setInterval(tick, 2000);
+  } else {
+    clearInterval(timer); timer = null;
+  }
+  showState();
+}
+
+function showState() {
+  document.getElementById("state").textContent =
+    `variant=${variant}  karta=${open ? "öppen (prenumererar)" : "stängd (ingen prenumeration)"}  mörkt=${dark}` +
+    (selected ? `  markerad=${selected}` : "") + "\n" +
+    buses.map((b) => `linje ${b.line}: ${(b.t*100).toFixed(0)} % av sträckan, zon ${b.zone}`).join("\n");
+}
+
+function setVariant(v) {
+  variant = v; selected = null;
+  const u = new URL(location.href); u.searchParams.set("variant", v); history.replaceState(null, "", u);
+  document.getElementById("vlabel").textContent = `${v} (${VARIANTS[v].name})`;
+  document.getElementById("note").textContent = `Prototyp #7 · ${VARIANTS[v].note}`;
+  renderRows();
+  if (map && map.isStyleLoaded()) drawRoutes();
+  drawBuses();
+}
+
+document.getElementById("toggle").onclick = () => setOpen(!open);
+document.getElementById("prev").onclick = () => setVariant(keys[(keys.indexOf(variant) + keys.length - 1) % keys.length]);
+document.getElementById("next").onclick = () => setVariant(keys[(keys.indexOf(variant) + 1) % keys.length]);
+document.getElementById("dark").onclick = () => { dark = !dark; document.body.classList.toggle("dark", dark); if (map) map.setStyle(STYLE()); showState(); };
+addEventListener("keydown", (e) => {
+  if (e.target.closest("input,textarea,[contenteditable]")) return;
+  if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+setVariant(variant);
+setOpen(true);
+</script>
+</body>
+</html>
