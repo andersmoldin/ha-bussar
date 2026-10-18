@@ -79,6 +79,14 @@ def parse_departures(payload: dict) -> list[Departure]:
     return departures
 
 
+def parse_stop_location(payload: dict) -> tuple[float, float] | None:
+    """Hållplatsens position. Alla lägen i svaret delar samma koordinater."""
+    for stop in payload.get("stops", []):
+        if stop.get("lat") is not None and stop.get("lon") is not None:
+            return (stop["lat"], stop["lon"])
+    return None
+
+
 def upcoming(
     departures: list[Departure], watched: WatchedLine, *, now: datetime
 ) -> list[Departure]:

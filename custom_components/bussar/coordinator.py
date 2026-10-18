@@ -13,7 +13,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import TrafiklabAuthError, TrafiklabClient, TrafiklabError
 from .const import DOMAIN, USAGE_DEPARTURES
-from .departures import TRAFIKLAB_TZ, Departure, parse_departures
+from .departures import TRAFIKLAB_TZ, Departure, parse_departures, parse_stop_location
 from .usage import UsageCounter
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,6 +49,7 @@ class StopCoordinator(DataUpdateCoordinator[list[Departure] | None]):
         self._client = client
         self.stop_id = stop_id
         self._usage = usage
+        self.stop_location: tuple[float, float] | None = None
 
     async def _async_update_data(self) -> list[Departure] | None:
         if self.data is not None and is_quiet(dt_util.now()):
@@ -56,7 +57,9 @@ class StopCoordinator(DataUpdateCoordinator[list[Departure] | None]):
             return self.data
         self._usage.record(USAGE_DEPARTURES, dt_util.now())
         try:
-            return parse_departures(await self._client.departures(self.stop_id))
+            payload = await self._client.departures(self.stop_id)
+            self.stop_location = parse_stop_location(payload) or self.stop_location
+            return parse_departures(payload)
         except TrafiklabAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except TrafiklabError as err:

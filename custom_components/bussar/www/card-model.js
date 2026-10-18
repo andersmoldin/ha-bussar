@@ -5,7 +5,7 @@
 // Stapeln är full när det är så här mycket mer än gångtid + fönster kvar.
 const FULL_EXTRA_SECONDS = 300;
 
-function zoneFor(secondsLeft, { walk, run, window }) {
+export function zoneFor(secondsLeft, { walk, run, window }) {
   if ([walk, run, window].some((v) => typeof v !== "number")) return null;
   if (secondsLeft > walk + window) return "plenty";
   if (secondsLeft >= walk) return "go";

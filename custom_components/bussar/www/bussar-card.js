@@ -4,7 +4,10 @@
 
 // Samma version som kortet laddades med, så att en HACS-uppdatering inte blandar
 // nytt kort med en gammal cachad card-model.js.
-const { rowModel } = await import(`./card-model.js${new URL(import.meta.url).search}`);
+const version = new URL(import.meta.url).search;
+const { rowModel } = await import(`./card-model.js${version}`);
+const { rowKey } = await import(`./map-model.js${version}`);
+const { BusMap, MAP_STYLE } = await import(`./bussar-map.js${version}`);
 
 const ZONE_LABEL = {
   plenty: "Gott om tid",
@@ -41,7 +44,7 @@ const STYLE = `
   .go { --zone-color: var(--bussar-go); }
   .run { --zone-color: var(--bussar-run); }
   .hint { padding: 16px; color: var(--secondary-text-color); }
-`;
+${MAP_STYLE}`;
 
 function delayNode(delay) {
   const minutes = Number(delay);
@@ -75,7 +78,9 @@ class Row {
     this.fill = q(".fill");
   }
 
-  update(stateObj, nowMs, timeZone) {
+  update(stateObj, nowMs, timeZone, selected) {
+    this.key = stateObj ? rowKey(stateObj) : null;
+    this.el.classList.toggle("selected", this.key !== null && this.key === selected);
     if (!stateObj) {
       this._show({ line: "?", destination: `${this.entityId} saknas` });
       return;
@@ -85,7 +90,8 @@ class Row {
   }
 
   _show(row) {
-    this.el.className = `row ${row.zone ?? ""}`;
+    this.el.classList.remove("plenty", "go", "run");
+    if (row.zone) this.el.classList.add(row.zone);
     this.badge.textContent = row.line ?? "?";
     this.dest.textContent = row.destination ?? "";
     this.live.hidden = !row.live;
@@ -128,6 +134,7 @@ class BussarCard extends HTMLElement {
 
   disconnectedCallback() {
     clearInterval(this._timer);
+    this._map?.disconnect();
   }
 
   getCardSize() {
@@ -144,7 +151,19 @@ class BussarCard extends HTMLElement {
 
   _build() {
     this.attachShadow({ mode: "open" });
-    this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="title" hidden></div><div class="rows"></div></ha-card>`;
+    this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="title" hidden></div><div class="rows"></div>
+      <button class="toggle" type="button"><span class="label">Visa karta</span><span class="chev">▾</span></button>
+      <div class="map" hidden><div class="status" hidden></div></div></ha-card>`;
+    this._map = new BusMap(this.shadowRoot.querySelector("ha-card"));
+    // Tryck på en rad medan kartan är utfälld för att markera radens bussar.
+    this.shadowRoot.querySelector(".rows").addEventListener("click", (ev) => {
+      const row = this._rows?.find((r) => r.el.contains(ev.target));
+      if (row?.key) {
+        this._map.select(row.key);
+        this._render();
+      }
+    });
+    this.shadowRoot.querySelector("ha-card").addEventListener("bussar-map-closed", () => this._render());
   }
 
   _render() {
@@ -161,9 +180,13 @@ class BussarCard extends HTMLElement {
         rows.innerHTML = `<div class="hint">Lägg till Bussar-sensorer under entities.</div>`;
       }
     }
+    this._map.hass = this._hass;
+    this._map.sensors = this._config.entities;
+    this._map.toggle.hidden = this._map.noKey || this._config.entities.length === 0;
     const now = Date.now();
     const timeZone = this._hass.config?.time_zone;
-    for (const row of this._rows) row.update(this._hass.states[row.entityId], now, timeZone);
+    const selected = this._map.selected;
+    for (const row of this._rows) row.update(this._hass.states[row.entityId], now, timeZone, selected);
   }
 }
 
