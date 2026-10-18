@@ -339,3 +339,24 @@ async def test_changed_walking_time_is_used_by_the_sensor(hass: HomeAssistant, e
     attrs = _state(hass, entry, "10", "A").attributes
     assert attrs["zone"] == "go"
     assert attrs["walk_seconds"] == 720
+
+
+async def test_sensor_exposes_stop_coordinates_for_the_map(hass: HomeAssistant, entry, freezer):
+    freezer.move_to(RECORDED_AT)
+
+    await _setup(hass, entry)
+
+    attrs = _state(hass, entry, "10", "A").attributes
+    assert (attrs["stop_latitude"], attrs["stop_longitude"]) == (58.322602, 19.126149)
+    # Inte latitude/longitude: då ritar HA:s kartvy varje Bussar-sensor som en entitet.
+    assert "latitude" not in attrs
+
+
+async def test_sensor_exposes_stop_id_so_the_card_can_match_buses(
+    hass: HomeAssistant, entry, freezer
+):
+    freezer.move_to(RECORDED_AT)
+
+    await _setup(hass, entry)
+
+    assert _state(hass, entry, "40", "A").attributes["stop_id"] == STOP_B_ID

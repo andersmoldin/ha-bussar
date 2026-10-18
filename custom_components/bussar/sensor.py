@@ -133,6 +133,7 @@ class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
         attrs: dict[str, Any] = {
             "line": self._watched.line,
             "platform": self._watched.platform,
+            "stop_id": self.coordinator.stop_id,
             "walk_seconds": int(self._timing.walk.total_seconds()),
             "run_seconds": int(self._timing.run.total_seconds()),
             "window_seconds": int(self._timing.window.total_seconds()),
@@ -147,6 +148,8 @@ class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
             "following_departure_time": None,
             "following_expected": None,
         }
+        if self.coordinator.stop_location is not None:
+            attrs["stop_latitude"], attrs["stop_longitude"] = self.coordinator.stop_location
         if result is None:
             self._attr_native_value = None
             self._attr_extra_state_attributes = attrs

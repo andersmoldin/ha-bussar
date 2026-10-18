@@ -40,18 +40,19 @@ Mätaren räknar ner lokalt varje sekund och rättar sig när ny data kommer.
 
 ## Karta
 
-- Bussar i bevakad riktning på bevakade linjer, med linjenummer i markören och samma färg som linjens mätare
+- Fälls ut under mätarna i samma kort (Visa karta/Dölj karta), 250 px hög. HA:s egen `<ha-map>`.
+- Bussar i bevakad riktning på bevakade linjer, som en cirkel med linjenumret i samma zonfärg som radens stapel
 - Bevakade hållplatser
-- Hemmet, från `zone.home`
-- Autozoom så att hem, hållplatser och närmaste bussar syns
-- Inga linjesträckningar i v1
+- Zoomar en gång vid utfällning så att hem (HA:s hemposition), hållplatser och kortets bussar syns, och flyttar sig sedan aldrig själv
+- Tryck på en rad markerar radens bussar
+- Inga linjesträckningar i v1 (kräver statisk GTFS)
 
 ## Data och kvoter (Trafiklab Bronze)
 
 | Flöde | Källa | Takt | Kvot/månad |
 |---|---|---|---|
 | Avgångar | Trafiklab Realtime APIs, `GET /v1/departures/{areaId}` | var 60:e s per hållplats, 05–23 | ~32 000 per hållplats av 100 000 totalt |
-| Fordonspositioner | GTFS Regional Realtime, `gtfs-rt/{operator}/VehiclePositions.pb` | var 10:e s, endast när kartkortet visas | hård spärr vid 28 000 av 30 000 |
+| Fordonspositioner | GTFS Regional Realtime, `gtfs-rt/{operator}/VehiclePositions.pb` | var 10:e s, endast när kartan är utfälld | hård spärr vid 28 000 av 30 000 |
 
 - Två separata API-nycklar, en per API.
 - Avgångs-API:t cachar 60 s, så tätare anrop är meningslösa.
@@ -65,7 +66,7 @@ Mätaren räknar ner lokalt varje sekund och rättar sig när ny data kommer.
 - Egen custom integration i Python, domän `bussar`, med config flow för API-nycklar och bevakade linjer.
 - **All logik i sensorer:** zon, nästa buss, försening. Kortet ritar bara upp dem, så att en e-ink-skärm senare kan läsa samma sensorer.
 - Lovelace-kortet (mätare och karta) levereras och registreras av integrationen. Ett repo, en installation.
-- Kartkortet signalerar till integrationen när det visas, och först då hämtas positioner.
+- Kartan prenumererar hos integrationen medan den är utfälld och kortet syns, och bara då hämtas positioner.
 - Installeras via HACS som custom repository.
 
 ## Tester
