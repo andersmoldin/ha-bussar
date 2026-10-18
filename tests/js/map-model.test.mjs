@@ -24,25 +24,26 @@ const vehicle = (overrides = {}) => ({
   ...overrides,
 });
 
-test("bussen får zonen för sin egen avgång vid hållplatsen", () => {
+test("bussen får linjens färg och kopplas till sin rad", () => {
+  const blue = { ...sensor("10", "A"), attributes: { ...sensor("10", "A").attributes, line_color: "#1e88e5" } };
+
+  const markers = vehicleMarkers([vehicle()], [blue], at("19:43:36"));
+
+  assert.deepEqual(markers, [
+    { id: "v1", line: "10", row: rowKey(blue), color: "#1e88e5", textColor: "#fff", lat: 58.31, lon: 19.12 },
+  ]);
+});
+
+test("samma linje och läge vid två hållplatser: bussen hör till sin egen hållplats", () => {
+  const markers = vehicleMarkers([vehicle({ stop_id: "2000" })], [sensor("10", "A", "1000"), sensor("10", "A", "2000")], at("19:43:36"));
+
+  assert.equal(markers[0].row, rowKey(sensor("10", "A", "2000")));
+});
+
+test("linje utan vald färg: markören får temats färg", () => {
   const markers = vehicleMarkers([vehicle()], [sensor("10", "A")], at("19:43:36"));
 
-  assert.deepEqual(markers, [{ id: "v1", line: "10", row: rowKey(sensor("10", "A")), zone: "plenty", lat: 58.31, lon: 19.12 }]);
-});
-
-test("samma linje och läge vid två hållplatser: zonen följer bussens hållplats", () => {
-  const sensors = [sensor("10", "A", "1000"), { ...sensor("10", "A", "2000"), attributes: { ...sensor("10", "A", "2000").attributes, walk_seconds: 900 } }];
-
-  // 960 s kvar: gott om tid med 270 s gångtid, men gå nu med 900 s gångtid.
-  const markers = vehicleMarkers([vehicle({ stop_id: "2000", expected: "2026-10-17T19:59:36+02:00" })], sensors, at("19:43:36"));
-
-  assert.equal(markers[0].zone, "go");
-});
-
-test("en buss som inte går att hinna ritas utan zonfärg", () => {
-  const markers = vehicleMarkers([vehicle({ expected: "2026-10-17T19:44:36+02:00" })], [sensor("10", "A")], at("19:43:36"));
-
-  assert.equal(markers[0].zone, null);
+  assert.equal(markers[0].color, null);
 });
 
 test("kartan zoomar till hem, varje hållplats en gång och bussarna", () => {

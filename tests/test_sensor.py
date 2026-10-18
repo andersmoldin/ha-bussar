@@ -5,7 +5,12 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from aiohttp import ContentTypeError, RequestInfo
-from homeassistant.config_entries import ConfigEntryState, ConfigSubentry, ConfigSubentryData
+from homeassistant.config_entries import (
+    SOURCE_RECONFIGURE,
+    ConfigEntryState,
+    ConfigSubentry,
+    ConfigSubentryData,
+)
 from homeassistant.const import CONF_API_KEY, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -360,3 +365,42 @@ async def test_sensor_exposes_stop_id_so_the_card_can_match_buses(
     await _setup(hass, entry)
 
     assert _state(hass, entry, "40", "A").attributes["stop_id"] == STOP_B_ID
+
+
+async def test_line_colour_chosen_on_one_watched_line_applies_to_the_line_number(
+    hass: HomeAssistant, aioclient_mock, freezer
+):
+    await hass.config.async_set_time_zone("Europe/Stockholm")
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_A_ID}", json=load_fixture("departures-stop-a.json"))
+    aioclient_mock.get(f"{DEPARTURES_URL}{STOP_B_ID}", json=load_fixture("departures-stop-b.json"))
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_API_KEY: "secret"},
+        subentries_data=[
+            _line(STOP_A_ID, "Hållplats A", "10", "A"),
+            _line(STOP_B_ID, "Hållplats B", "10", "B"),
+            _line(STOP_A_ID, "Hållplats A", "20", "B"),
+        ],
+    )
+    freezer.move_to(RECORDED_AT)
+    await _setup(hass, entry)
+    assert _state(hass, entry, "10", "A").attributes["line_color"] is None
+
+    subentry_id = next(
+        sid
+        for sid, sub in entry.subentries.items()
+        if sub.data[CONF_STOP_ID] == STOP_A_ID and sub.data[CONF_LINE] == "10"
+    )
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "line"),
+        context={"source": SOURCE_RECONFIGURE, "subentry_id": subentry_id},
+    )
+    await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {"walk_minutes": 4.5, "run_minutes": 2, "window_minutes": 5, "line_color": [30, 136, 229]},
+    )
+    await hass.async_block_till_done()
+
+    assert _state(hass, entry, "10", "A").attributes["line_color"] == "#1e88e5"
+    assert _state(hass, entry, "10", "B").attributes["line_color"] == "#1e88e5"
+    assert _state(hass, entry, "20", "B").attributes["line_color"] is None

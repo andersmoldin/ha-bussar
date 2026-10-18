@@ -20,3 +20,8 @@ Verifierat mot riktiga svar 2026-10-17. Anonymiserade exempel ligger i `tests/fi
 - Bara ungefär en tredjedel av fordonen har `trip.trip_id`. `route_id` saknas helt.
 - **`trip_id` i VehiclePositions är samma som `trip.trip_id` i avgångs-API:t.** Ett fordon kopplas alltså till linje, riktning och läge genom att matcha mot kommande avgångar vid de bevakade hållplatserna. Statisk GTFS behövs inte.
 - Fordon som ännu inte har startat sin tur saknar position kopplad till turen, och dyker upp först när turen startar.
+
+## Linjefärger (GTFS Regional Static)
+
+- `routes.txt` i UL:s statiska GTFS (`gtfs/ul/ul.zip`, ca 24 MB, hämtad 2026-10-18) har kolumnerna `route_id, agency_id, route_short_name, route_long_name, route_type, route_desc`. **`route_color` och `route_text_color` saknas**, så linjefärgerna går inte att hämta därifrån. Användaren väljer i stället färg per linjenummer (#15).
+- `route_desc` anger linjetyp: Stadsbuss, Regionbuss, Skolbuss, Expressbuss, Tätortsbuss.

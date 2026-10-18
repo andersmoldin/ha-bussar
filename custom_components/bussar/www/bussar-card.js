@@ -93,11 +93,14 @@ class Row {
     this.el.classList.remove("plenty", "go", "run");
     if (row.zone) this.el.classList.add(row.zone);
     this.badge.textContent = row.line ?? "?";
+    // Utan vald linjefärg gäller temats färger från stilen.
+    this.badge.style.background = row.color ?? "";
+    this.badge.style.color = row.textColor ?? "";
     this.dest.textContent = row.destination ?? "";
     this.live.hidden = !row.live;
     this.minutes.textContent = row.minutes === null || row.minutes === undefined ? "–" : `${row.minutes} min`;
     this.now.replaceChildren(...(row.clock ? [row.clock, ...this._delay(row.delay)] : []));
-    this.next.textContent = row.followingClock ? `sedan ${row.followingClock}` : "";
+    this.next.textContent = row.followingClock ? `nästa ${row.followingClock}` : "";
     this.bar.setAttribute("aria-label", row.zone ? ZONE_LABEL[row.zone] : "Ingen buss att hinna");
     this.fill.style.width = `${((row.fill ?? 0) * 100).toFixed(1)}%`;
   }
