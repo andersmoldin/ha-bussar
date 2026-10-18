@@ -21,8 +21,9 @@ Varje bevakad linje blir en sensor med minuter till nästa buss **som går att h
 | `canceled` | Kommande inställda turer på linjen (planerad tid) |
 | `following_departure_time`, `following_expected` | Bussen efter |
 | `walk_seconds`, `run_seconds`, `window_seconds` | Zongränserna, så att ett kort kan räkna ner själv |
+| `line_color` | Linjens valda färg (`#rrggbb`), eller `null` när temats färg gäller |
 
-Sensorn skrivs om vid varje minutbyte och zongräns, även mellan hämtningarna. Gångtid (4,5 min), springtid (2 min) och fönster (5 min) ändras per linje via **⋮ → Ändra gångtider** på den bevakade linjen.
+Sensorn skrivs om vid varje minutbyte och zongräns, även mellan hämtningarna. Gångtid (4,5 min), springtid (2 min) och fönster (5 min) ändras per linje via **⋮ → Ändra gångtider och färg** på den bevakade linjen. Där väljs också linjens färg. Färgen gäller alla bevakade linjer med samma linjenummer, oavsett hållplats och läge, och **Använd temats färg** tar bort den.
 
 ## Kortet
 
@@ -36,9 +37,9 @@ entities:
   - sensor.40_lage_a_hallplats_b
 ```
 
-Varje rad visar linje och destination med aktuell avgång under (`23:40 +2`), och till höger minuter kvar med nästa buss under (`sedan 23:55`). Stapeln töms mot springgränsen och är grön (gott om tid), gul (nu passar det att gå) eller orange (spring). En pulserande grön punkt betyder realtid. Kortet räknar ner varje sekund och byter till nästa buss vid springgränsen.
+Varje rad visar linje och destination med aktuell avgång under (`23:40 +2`), och till höger minuter kvar med nästa buss under (`nästa 23:55`). Linjebrickan har linjens valda färg med vit eller svart text, eller temats färg om ingen färg är vald. Stapeln töms mot springgränsen och är grön (gott om tid), gul (nu passar det att gå) eller orange (spring). En pulserande grön punkt betyder realtid. Kortet räknar ner varje sekund och byter till nästa buss vid springgränsen.
 
-Med **Visa karta** fälls en karta ut under raderna (kräver nyckeln för positioner, se nedan). Varje buss är en cirkel i samma färg som radens stapel, med linjenumret inuti, och hållplatserna är ringar. Kartan zoomar en gång när den fälls ut, till hemmet, hållplatserna och kortets bussar, och flyttar sig sedan inte själv. Tryck på en rad för att markera radens bussar. Utan positionsnyckel försvinner knappen vid första försöket. Kartan är HA:s egen, och därför kräver Bussar Home Assistant 2026.10 eller senare.
+Med **Visa karta** fälls en karta ut under raderna (kräver nyckeln för positioner, se nedan). Varje buss är en cirkel i linjens färg (temats färg om ingen är vald), med linjenumret inuti, och hållplatserna är ringar. Kartan zoomar en gång när den fälls ut, till hemmet, hållplatserna och kortets bussar, och flyttar sig sedan inte själv. Tryck på en rad för att markera radens bussar. Utan positionsnyckel försvinner knappen vid första försöket. Kartan är HA:s egen, och därför kräver Bussar Home Assistant 2026.10 eller senare.
 
 Förhandsvisa kortet utan HA: `python3 -m http.server 8765` och öppna `http://localhost:8765/tests/js/preview.html?theme=dark`.
 

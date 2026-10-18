@@ -27,6 +27,7 @@ from .const import (
 )
 from .coordinator import StopCoordinator
 from .departures import WatchedLine
+from .line_colors import line_color
 from .zones import Timing, assess, next_change
 
 
@@ -38,7 +39,11 @@ async def async_setup_entry(
     for subentry in entry.get_subentries_of_type(SUBENTRY_LINE):
         coordinator = entry.runtime_data.coordinators[subentry.data[CONF_STOP_ID]]
         async_add_entities(
-            [NextDepartureSensor(coordinator, subentry)],
+            [
+                NextDepartureSensor(
+                    coordinator, subentry, line_color(entry, subentry.data[CONF_LINE])
+                )
+            ],
             config_subentry_id=subentry.subentry_id,
         )
     async_add_entities(UsageSensor(entry, api) for api in (USAGE_DEPARTURES, USAGE_POSITIONS))
@@ -78,8 +83,11 @@ class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
     _attr_has_entity_name = True
     _attr_name = None
 
-    def __init__(self, coordinator: StopCoordinator, subentry: ConfigSubentry) -> None:
+    def __init__(
+        self, coordinator: StopCoordinator, subentry: ConfigSubentry, color: str | None
+    ) -> None:
         super().__init__(coordinator)
+        self._color = color
         self._watched = WatchedLine(subentry.data[CONF_LINE], subentry.data[CONF_PLATFORM])
         self._timing = Timing.from_minutes(subentry.data)
         self._unsub_timer: CALLBACK_TYPE | None = None
@@ -134,6 +142,7 @@ class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):
             "line": self._watched.line,
             "platform": self._watched.platform,
             "stop_id": self.coordinator.stop_id,
+            "line_color": self._color,
             "walk_seconds": int(self._timing.walk.total_seconds()),
             "run_seconds": int(self._timing.run.total_seconds()),
             "window_seconds": int(self._timing.window.total_seconds()),

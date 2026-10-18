@@ -5,7 +5,7 @@
 // Stapeln är full när det är så här mycket mer än gångtid + fönster kvar.
 const FULL_EXTRA_SECONDS = 300;
 
-export function zoneFor(secondsLeft, { walk, run, window }) {
+function zoneFor(secondsLeft, { walk, run, window }) {
   if ([walk, run, window].some((v) => typeof v !== "number")) return null;
   if (secondsLeft > walk + window) return "plenty";
   if (secondsLeft >= walk) return "go";
@@ -15,6 +15,24 @@ export function zoneFor(secondsLeft, { walk, run, window }) {
 
 function clockIn(ms, timeZone) {
   return new Intl.DateTimeFormat("sv-SE", { hour: "2-digit", minute: "2-digit", timeZone }).format(ms);
+}
+
+// Över denna relativa luminans blir texten svart. Gränsen ligger högt, så att mellanmörka
+// linjefärger (blått, grått) får vit text som hos trafikbolagen, och gult får svart.
+const DARK_TEXT_ABOVE = 0.5;
+
+function luminance(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// Linjens färg (#rrggbb) och en läsbar textfärg. Utan färg gäller temat (null).
+export function lineColors(color) {
+  if (!color) return { color: null, textColor: null };
+  return { color, textColor: luminance(color) > DARK_TEXT_ABOVE ? "#000" : "#fff" };
 }
 
 const EMPTY = { minutes: null, zone: null, fill: 0, clock: null, delay: null, live: null, followingClock: null };
@@ -45,7 +63,7 @@ export function rowModel(stateObj, nowMs, timeZone) {
     live = null;
   }
 
-  const base = { line: a.line, destination: a.destination ?? null };
+  const base = { line: a.line, destination: a.destination ?? null, ...lineColors(a.line_color) };
   if (expected === null) {
     return { ...base, ...EMPTY };
   }

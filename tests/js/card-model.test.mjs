@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { rowModel } from "../../custom_components/bussar/www/card-model.js";
+import { lineColors, rowModel } from "../../custom_components/bussar/www/card-model.js";
 
 const TZ = "Europe/Stockholm";
 const at = (hms) => Date.parse(`2026-10-17T${hms}+02:00`);
@@ -98,4 +98,23 @@ test("saknade zongränser ger ingen zon och tom stapel i stället för NaN", () 
   assert.equal(row.minutes, 15);
   assert.equal(row.zone, null);
   assert.equal(row.fill, 0);
+});
+
+test("linjefärgen ger läsbar text: vit på mörkt, svart på ljust", () => {
+  assert.deepEqual(lineColors("#1e88e5"), { color: "#1e88e5", textColor: "#fff" });
+  assert.deepEqual(lineColors("#f4c20d"), { color: "#f4c20d", textColor: "#000" });
+  assert.deepEqual(lineColors("#000000"), { color: "#000000", textColor: "#fff" });
+  assert.deepEqual(lineColors("#9e9e9e"), { color: "#9e9e9e", textColor: "#fff" });
+  assert.deepEqual(lineColors("#e0e0e0"), { color: "#e0e0e0", textColor: "#000" });
+});
+
+test("utan vald färg används temats färger", () => {
+  assert.deepEqual(lineColors(null), { color: null, textColor: null });
+});
+
+test("raden får linjens färg från sensorn", () => {
+  const row = rowModel(sensor({ line_color: "#000000" }), at("19:43:36"), TZ);
+
+  assert.equal(row.color, "#000000");
+  assert.equal(row.textColor, "#fff");
 });

@@ -12,15 +12,9 @@ const FIT = { maxZoom: 16, pad: 0.15, animate: false };
 // Så länge får ha-map på sig att ladda och starta sin kartmotor.
 const LOAD_TIMEOUT_MS = 10000;
 
-const ZONE_COLOR = {
-  plenty: "var(--bussar-plenty)",
-  go: "var(--bussar-go)",
-  run: "var(--bussar-run)",
-};
-// Standardfärgerna från kortets :host, för reservläget där ha-map vill ha en färgsträng och
-// inte förstår CSS-variabler. Ett eget tema slår därför inte igenom på reservprickarna.
-const ZONE_HEX = { plenty: "#43a047", go: "#f4c20d", run: "#ffa600" };
-const NO_ZONE = "#9e9e9e";
+// HA:s standardfärg för --primary-color. Reservläget vill ha en färgsträng och förstår
+// inte CSS-variabler, så där används den direkt.
+const FALLBACK_COLOR = "#03a9f4";
 
 const STATUS_TEXT = {
   waiting: "Bussar startar …",
@@ -56,8 +50,9 @@ function busElement(marker, selected) {
     boxSizing: "border-box",
     borderRadius: "50%",
     border: "2px solid #fff",
-    background: ZONE_COLOR[marker.zone] ?? NO_ZONE,
-    color: "#fff",
+    // Linjens färg, eller temats färger när ingen linjefärg är vald.
+    background: marker.color ?? `var(--primary-color, ${FALLBACK_COLOR})`,
+    color: marker.textColor ?? "var(--text-primary-color, #fff)",
     font: "700 11px/20px var(--ha-font-family-body, sans-serif)",
     textAlign: "center",
     boxShadow: "0 1px 3px rgba(0,0,0,.4)",
@@ -226,7 +221,7 @@ export class BusMap {
   _draw() {
     if (!this._map) return;
     const sensors = this._sensorStates();
-    const markers = vehicleMarkers(this._vehicles, sensors, Date.now());
+    const markers = vehicleMarkers(this._vehicles, sensors);
     // Bussarna är inga entiteter, så de läggs ut via ha-map:s kartmotor (privat API).
     const engine = this._map._engine;
     if (engine?.addMarker) {
@@ -241,7 +236,7 @@ export class BusMap {
   _drawAsPaths(markers) {
     this._map.paths = markers.map((m) => ({
       name: `Linje ${m.line}`,
-      color: ZONE_HEX[m.zone] ?? NO_ZONE,
+      color: m.color ?? FALLBACK_COLOR,
       points: [m, m].map((p) => ({ point: [p.lat, p.lon], timestamp: new Date() })),
     }));
   }

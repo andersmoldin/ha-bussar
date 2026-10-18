@@ -37,7 +37,7 @@
     "line": {
       "initiate_flow": {
         "user": "Add watched line",
-        "reconfigure": "Change walking times"
+        "reconfigure": "Change walking times and colour"
       },
       "entry_type": "Watched line",
       "step": {
@@ -69,12 +69,14 @@
           }
         },
         "reconfigure": {
-          "title": "Walking times",
-          "description": "Minutes from your door to the stop. The window is how long the gauge shows 'time to go'.",
+          "title": "Walking times and colour",
+          "description": "Minutes from your door to the stop. The window is how long the gauge shows 'time to go'. The colour applies to every watched line numbered {line}, in the card and on the map.",
           "data": {
             "walk_minutes": "Walking time",
             "run_minutes": "Running time",
-            "window_minutes": "Window"
+            "window_minutes": "Window",
+            "line_color": "Line colour",
+            "theme_color": "Use theme colour (remove line colour)"
           }
         }
       },

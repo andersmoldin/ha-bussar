@@ -1,28 +1,22 @@
 // Räknar fram kartans innehåll ur bussarna från bussar/vehicles/subscribe och kortets sensorer.
 
 // Samma version som kortet laddades med, se bussar-card.js.
-const { zoneFor } = await import(`./card-model.js${new URL(import.meta.url).search}`);
+const { lineColors } = await import(`./card-model.js${new URL(import.meta.url).search}`);
 
 const key = (line, platform, stopId) => `${stopId}|${line}|${platform}`;
 
 // Nyckeln som kopplar en rad i kortet till bussarna på samma hållplats, linje och läge.
 export const rowKey = ({ attributes: a }) => key(a.line, a.platform, a.stop_id);
 
-// En markör per buss, i samma zonfärg som stapeln för bussens avgång vid hållplatsen.
-export function vehicleMarkers(vehicles, sensors, nowMs) {
-  const timingByRow = new Map(
-    sensors.map((sensor) => [
-      rowKey(sensor),
-      { walk: sensor.attributes.walk_seconds, run: sensor.attributes.run_seconds, window: sensor.attributes.window_seconds },
-    ]),
-  );
+// En markör per buss, i linjens färg.
+export function vehicleMarkers(vehicles, sensors) {
+  const colorsByRow = new Map(sensors.map((sensor) => [rowKey(sensor), lineColors(sensor.attributes.line_color)]));
   // Bussar skickar bussarna för alla bevakade linjer. Kortet visar bara sina egna.
   return vehicles.flatMap((v) => {
     const row = key(v.line, v.platform, v.stop_id);
-    const timing = timingByRow.get(row);
-    if (!timing) return [];
-    const secondsLeft = (Date.parse(v.expected) - nowMs) / 1000;
-    return [{ id: v.vehicle_id, line: v.line, row, zone: zoneFor(secondsLeft, timing), lat: v.latitude, lon: v.longitude }];
+    const colors = colorsByRow.get(row);
+    if (!colors) return [];
+    return [{ id: v.vehicle_id, line: v.line, row, ...colors, lat: v.latitude, lon: v.longitude }];
   });
 }
 

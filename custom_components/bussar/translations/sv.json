@@ -37,7 +37,7 @@
     "line": {
       "initiate_flow": {
         "user": "Lägg till bevakad linje",
-        "reconfigure": "Ändra gångtider"
+        "reconfigure": "Ändra gångtider och färg"
       },
       "entry_type": "Bevakad linje",
       "step": {
@@ -69,12 +69,14 @@
           }
         },
         "reconfigure": {
-          "title": "Gångtider",
-          "description": "Minuter från dörren till hållplatsen. Fönstret är hur länge mätaren visar 'nu passar det att gå'.",
+          "title": "Gångtider och färg",
+          "description": "Minuter från dörren till hållplatsen. Fönstret är hur länge mätaren visar 'nu passar det att gå'. Färgen gäller alla bevakade linjer med nummer {line}, i kortet och på kartan.",
           "data": {
             "walk_minutes": "Gångtid",
             "run_minutes": "Springtid",
-            "window_minutes": "Fönster"
+            "window_minutes": "Fönster",
+            "line_color": "Linjefärg",
+            "theme_color": "Använd temats färg (ta bort linjefärgen)"
           }
         }
       },
