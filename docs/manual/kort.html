@@ -64,14 +64,15 @@ card.hass = hass;
 card.disconnectedCallback();
 
 // [sida, rad, element, väg ut, förklaring]. Raden räknas från 1; 0 är kortet självt.
-// Vägen ut ur kortet korsar ingen text: "side" går vågrätt mot förklaringens sida, "up" och "down" lodrätt.
+// Vägen ut ur kortet korsar ingen text, stapel eller bricka: "side" går vågrätt mot förklaringens sida,
+// "under" vågrätt längs rutans underkant (mellanrummet mellan textraden och stapeln) och "up" lodrätt.
 // Förklaringarna står på varje sida i den ordning strecken lämnar kortet, uppifrån.
 const NOTES = [
   ["left", 1, ".dest", "up", "Bussens destination."],
   ["left", 1, ".badge", "side", "Linjen, i linjens färg. Färgen väljs under <i>⋮ → Ändra gångtider och färg</i>. Utan vald färg: temats färg (som linje 30)."],
   ["left", 1, ".bar", "side", "Stapeln töms mot springgränsen. Grön: gott om tid. Gul: nu passar det att gå. Orange: spring."],
-  ["left", 3, ".now", "down", "Bussens avgång som klockslag."],
-  ["left", 2, ".early", "down", "Försening i minuter. <code>-1</code> (grön): en minut tidig. <code>+2</code> (röd): två minuter sen. Ingen siffra: i tid."],
+  ["left", 2, ".early", "under", "Försening i minuter. <code>-1</code> (grön): en minut tidig. <code>+2</code> (röd): två minuter sen. Ingen siffra: i tid."],
+  ["left", 3, ".now", "under", "Bussens avgång som klockslag."],
   ["right", 1, ".live", "up", "Grön, pulserande punkt: tiden är realtid. Utan punkt kommer tiden från tidtabellen, som på linje 30."],
   ["right", 2, ".minutes", "side", "Minuter tills bussen går."],
   ["right", 3, ".next", "side", "Klockslaget för bussen efter."],
@@ -85,17 +86,22 @@ root.prepend(Object.assign(document.createElement("style"), {
 }));
 const rows = [...root.querySelectorAll(".rows > .row")];
 const find = (row, sel) => (row === 0 ? root : rows[row - 1]).querySelector(sel);
+const textRect = (el, end) => {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  if (end) range.setEnd(end, end.length);
+  return range.getBoundingClientRect();
+};
 // Rutan runt själva texten, inte runt hela elementet (en textrad kan vara bredare än texten).
 const box = (el) => {
   if (el.matches(".bar, .live, .badge")) return el.getBoundingClientRect();
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  if (el.matches(".now")) range.setEnd(el.firstChild, el.firstChild.length);
-  return range.getBoundingClientRect();
+  return textRect(el, el.matches(".now") ? el.firstChild : null);
 };
 // Vänta en bildruta, så att kortet har fått sin layout.
 await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+// Kortets textrader. En markeringsruta växer inte in i textraden ovanför eller under.
+const lines = [...root.querySelectorAll(".title, .dest, .sub, .minutes, .toggle")].map((el) => textRect(el));
 const stageEl = document.getElementById("stage");
 const stage = stageEl.getBoundingClientRect();
 const svg = document.getElementById("marks");
@@ -113,10 +119,18 @@ const OUT = 12;
 const c = root.querySelector("ha-card").getBoundingClientRect();
 const cardRect = { left: c.left - stage.left, right: c.right - stage.left, top: c.top - stage.top, bottom: c.bottom - stage.top };
 
+const padY = (r) => {
+  const near = lines.filter((l) => l.left < r.right + PAD && l.right > r.left - PAD);
+  const above = Math.min(PAD, ...near.filter((l) => l.bottom <= r.top + 2).map((l) => r.top - l.bottom));
+  const below = Math.min(PAD, ...near.filter((l) => l.top >= r.bottom - 2).map((l) => l.top - r.bottom));
+  return [Math.max(0, above), Math.max(0, below)];
+};
+
 const marks = NOTES.map(([side, row, sel, exit, text], i) => {
   const r = box(find(row, sel));
-  const m = { side, exit, text, n: i + 1, x: r.left - stage.left - PAD, top: r.top - stage.top - PAD, w: r.width + 2 * PAD, h: r.height + 2 * PAD };
-  m.y = { side: m.top + m.h / 2, up: cardRect.top - OUT, down: cardRect.bottom + OUT }[exit];
+  const [above, below] = padY(r);
+  const m = { side, exit, text, n: i + 1, x: r.left - stage.left - PAD, top: r.top - stage.top - above, w: r.width + 2 * PAD, h: r.height + above + below };
+  m.y = { side: m.top + m.h / 2, under: m.top + m.h, up: cardRect.top - OUT }[exit];
   return m;
 });
 
@@ -137,15 +151,14 @@ for (const side of ["left", "right"]) {
 
 for (const m of marks) {
   const anchor = ANCHOR[m.side];
+  const cx = m.x + m.w / 2;
   let points;
-  if (m.exit === "side") {
-    const fromX = m.side === "left" ? m.x : m.x + m.w;
+  if (m.exit === "up") {
+    points = [[cx, m.top], [cx, m.ny], [anchor, m.ny]];
+  } else {
+    const fromX = m.exit === "under" ? cx : m.side === "left" ? m.x : m.x + m.w;
     const outX = m.side === "left" ? cardRect.left - OUT : cardRect.right + OUT;
     points = [[fromX, m.y], [outX, m.y], [anchor, m.ny]];
-  } else {
-    const cx = m.x + m.w / 2;
-    const fromY = m.exit === "up" ? m.top : m.top + m.h;
-    points = [[cx, fromY], [cx, m.ny], [anchor, m.ny]];
   }
   add("polyline", { points: points.join(" "), fill: "none", stroke: RED, "stroke-width": 1.2, opacity: 0.85 });
   add("circle", { cx: anchor, cy: m.ny, r: 3, fill: RED });
