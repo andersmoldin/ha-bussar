@@ -39,7 +39,17 @@ Varje rad visar linje och destination med aktuell avgång under (`23:40 +2`), oc
 
 Förhandsvisa kortet utan HA: `python3 -m http.server 8765` och öppna `http://localhost:8765/tests/js/preview.html?theme=dark`.
 
+## Bussarnas positioner (för kartan)
+
+Kartan behöver en extra, valfri nyckel för **GTFS Regional Realtime** från samma Trafiklab-projekt. Ange den via Inställningar → Enheter och tjänster → Bussar → ⋮ → **Konfigurera om**. Lämna fältet tomt där för att ta bort nyckeln. Slutar nyckeln fungera stoppas hämtningen och en notis visas under Inställningar → Reparationer tills du konfigurerar om.
+
+Positionerna hämtas **bara medan kartan visas**: kortet öppnar en prenumeration (websocket-kommandot `bussar/vehicles/subscribe`), och integrationen hämtar var 10:e sekund så länge någon prenumererar. Bara bussar på väg mot dina bevakade hållplatser i bevakad riktning skickas. De kopplas via kommande avgångar, så kartan är tom på natten (23–05) när avgångar inte hämtas. Laddas integrationen om medan kartan visas ber den kortet att prenumerera igen.
+
 ## Kvoter
+
+Enheten **Trafiklab** under integrationen har två diagnostiksensorer, *Anrop avgångar denna månad* och *Anrop positioner denna månad*, så att du kan följa förbrukningen.
+
+Positioner stoppas vid 28 000 anrop per kalendermånad (Bronze-gränsen är 30 000). Då visas en notis under Inställningar → Reparationer, och hämtningen fortsätter den 1:a nästa månad.
 
 En hållplats hämtas en gång per minut, delat mellan alla linjer där, och inga anrop görs 23–05 när det redan finns data; efter omstart eller omladdning nattetid hämtas varje hållplats en gång. Två hållplatser blir ungefär 67 000 anrop per månad, vilket ryms i Bronze-nivåns 100 000.
 

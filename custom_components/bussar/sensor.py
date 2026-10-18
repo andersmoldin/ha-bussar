@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import UnitOfTime
+from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -16,7 +16,15 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from . import BussarConfigEntry
-from .const import CONF_LINE, CONF_PLATFORM, CONF_STOP_ID, DOMAIN, SUBENTRY_LINE
+from .const import (
+    CONF_LINE,
+    CONF_PLATFORM,
+    CONF_STOP_ID,
+    DOMAIN,
+    SUBENTRY_LINE,
+    USAGE_DEPARTURES,
+    USAGE_POSITIONS,
+)
 from .coordinator import StopCoordinator
 from .departures import WatchedLine
 from .zones import Timing, assess, next_change
@@ -28,11 +36,40 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     for subentry in entry.get_subentries_of_type(SUBENTRY_LINE):
-        coordinator = entry.runtime_data[subentry.data[CONF_STOP_ID]]
+        coordinator = entry.runtime_data.coordinators[subentry.data[CONF_STOP_ID]]
         async_add_entities(
             [NextDepartureSensor(coordinator, subentry)],
             config_subentry_id=subentry.subentry_id,
         )
+    async_add_entities(UsageSensor(entry, api) for api in (USAGE_DEPARTURES, USAGE_POSITIONS))
+
+
+class UsageSensor(SensorEntity):
+    """Antal API-anrop denna månad, för att enkelt kunna kontrollera kvoten."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    # Nollställs varje månad; TOTAL_INCREASING tolkar det som en ny period, inte ett minus.
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_should_poll = False
+
+    def __init__(self, entry: BussarConfigEntry, api: str) -> None:
+        self._usage = entry.runtime_data.usage
+        self._api = api
+        self._attr_unique_id = f"{entry.entry_id}_usage_{api}"
+        self._attr_translation_key = f"usage_{api}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name="Trafiklab",
+            entry_type=DeviceEntryType.SERVICE,
+        )
+
+    @property
+    def native_value(self) -> int:
+        return self._usage.count(self._api, dt_util.now())
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(self._usage.async_add_listener(self.async_write_ha_state))
 
 
 class NextDepartureSensor(CoordinatorEntity[StopCoordinator], SensorEntity):

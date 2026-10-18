@@ -7,6 +7,7 @@ from typing import Any
 
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
@@ -14,6 +15,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -23,18 +25,22 @@ from homeassistant.helpers.selector import (
     SelectSelectorConfig,
     SelectSelectorMode,
 )
+from homeassistant.util import dt as dt_util
 
-from .api import TrafiklabAuthError, TrafiklabError, client_for
+from .api import TrafiklabAuthError, TrafiklabError, client_for, vehicle_client_for
 from .const import (
     CONF_LINE,
     CONF_PLATFORM,
     CONF_RUN_MINUTES,
     CONF_STOP_ID,
     CONF_STOP_NAME,
+    CONF_VEHICLE_API_KEY,
     CONF_WALK_MINUTES,
     CONF_WINDOW_MINUTES,
     DOMAIN,
+    POSITIONS_KEY_ISSUE,
     SUBENTRY_LINE,
+    USAGE_POSITIONS,
 )
 from .departures import WatchedLine, line_choices, parse_departures
 from .schema import vol
@@ -91,6 +97,46 @@ class BussarConfigFlow(ConfigFlow, domain=DOMAIN):
                     title="Trafiklab", data={CONF_API_KEY: user_input[CONF_API_KEY]}
                 )
         return self.async_show_form(step_id="user", data_schema=API_KEY_SCHEMA, errors=errors)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Lägg till, byt eller ta bort den valfria nyckeln för fordonspositioner.
+
+        Huvudnyckeln byts via reauth.
+        """
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            vehicle_key = (user_input.get(CONF_VEHICLE_API_KEY) or "").strip()
+            if vehicle_key:
+                if entry.state is ConfigEntryState.LOADED:
+                    entry.runtime_data.usage.record(USAGE_POSITIONS, dt_util.now())
+                try:
+                    await vehicle_client_for(self.hass, vehicle_key).fetch()
+                except TrafiklabAuthError:
+                    errors[CONF_VEHICLE_API_KEY] = "invalid_auth"
+                except TrafiklabError:
+                    errors[CONF_VEHICLE_API_KEY] = "cannot_connect"
+            if not errors:
+                data = {k: v for k, v in entry.data.items() if k != CONF_VEHICLE_API_KEY}
+                if vehicle_key:
+                    data[CONF_VEHICLE_API_KEY] = vehicle_key
+                ir.async_delete_issue(self.hass, DOMAIN, POSITIONS_KEY_ISSUE)
+                return self.async_update_reload_and_abort(entry, data=data)
+        current = user_input or entry.data
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_VEHICLE_API_KEY,
+                        description={"suggested_value": current.get(CONF_VEHICLE_API_KEY)},
+                    ): str,
+                }
+            ),
+            errors=errors,
+        )
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         return await self.async_step_reauth_confirm()

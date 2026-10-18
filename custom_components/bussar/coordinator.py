@@ -12,8 +12,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import TrafiklabAuthError, TrafiklabClient, TrafiklabError
-from .const import DOMAIN
+from .const import DOMAIN, USAGE_DEPARTURES
 from .departures import TRAFIKLAB_TZ, Departure, parse_departures
+from .usage import UsageCounter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class StopCoordinator(DataUpdateCoordinator[list[Departure] | None]):
         entry: ConfigEntry,
         client: TrafiklabClient,
         stop_id: str,
+        usage: UsageCounter,
     ) -> None:
         super().__init__(
             hass,
@@ -46,11 +48,13 @@ class StopCoordinator(DataUpdateCoordinator[list[Departure] | None]):
         )
         self._client = client
         self.stop_id = stop_id
+        self._usage = usage
 
     async def _async_update_data(self) -> list[Departure] | None:
         if self.data is not None and is_quiet(dt_util.now()):
             # Räkna vidare på senaste datan i stället för att hämta.
             return self.data
+        self._usage.record(USAGE_DEPARTURES, dt_util.now())
         try:
             return parse_departures(await self._client.departures(self.stop_id))
         except TrafiklabAuthError as err:

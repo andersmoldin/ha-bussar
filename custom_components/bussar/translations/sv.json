@@ -14,6 +14,13 @@
         "data": {
           "api_key": "API-nyckel"
         }
+      },
+      "reconfigure": {
+        "title": "Nyckel för bussarnas positioner",
+        "description": "Valfri nyckel för Trafiklab GTFS Regional Realtime (bussarnas positioner för kartan). Lämna tomt för att ta bort den. Nyckeln för Realtime APIs byts via ny autentisering.",
+        "data": {
+          "vehicle_api_key": "Nyckel för GTFS Regional Realtime (valfri)"
+        }
       }
     },
     "error": {
@@ -22,7 +29,8 @@
     },
     "abort": {
       "single_instance_allowed": "Bussar är redan tillagd. Lägg till fler linjer på integrationen i stället.",
-      "reauth_successful": "API-nyckeln är uppdaterad."
+      "reauth_successful": "API-nyckeln är uppdaterad.",
+      "reconfigure_successful": "Nyckeln är uppdaterad."
     }
   },
   "config_subentries": {
@@ -80,6 +88,28 @@
         "cannot_connect": "Kunde inte nå Trafiklab.",
         "already_configured": "Den linjen och det läget bevakas redan.",
         "reconfigure_successful": "Gångtiderna är uppdaterade."
+      }
+    }
+  },
+  "issues": {
+    "positions_quota_reached": {
+      "title": "Månadsgränsen för bussarnas positioner är nådd",
+      "description": "Bussar har gjort {limit} anrop för bussarnas positioner den här månaden och slutar hämta dem till den 1:a nästa månad, så att Trafiklab-nyckeln inte spärras. Avgångar och mätare fungerar som vanligt."
+    },
+    "positions_key_invalid": {
+      "title": "Nyckeln för bussarnas positioner fungerar inte",
+      "description": "Trafiklab godkände inte nyckeln för GTFS Regional Realtime, så Bussar har slutat hämta bussarnas positioner. Konfigurera om integrationen med en giltig nyckel. Avgångar och mätare fungerar som vanligt."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "usage_departures": {
+        "name": "Anrop avgångar denna månad",
+        "unit_of_measurement": "anrop"
+      },
+      "usage_positions": {
+        "name": "Anrop positioner denna månad",
+        "unit_of_measurement": "anrop"
       }
     }
   }

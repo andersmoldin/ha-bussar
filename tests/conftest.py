@@ -55,3 +55,10 @@ def shifted(payload: dict, delta) -> dict:
             if dep.get(key):
                 dep[key] = (datetime.fromisoformat(dep[key]) + delta).isoformat()
     return out
+
+
+VEHICLE_POSITIONS_URL = "https://opendata.samtrafiken.se/gtfs-rt/ul/VehiclePositions.pb"
+
+
+def vehicle_positions_bytes() -> bytes:
+    return (FIXTURES / "vehicle-positions.pb").read_bytes()
