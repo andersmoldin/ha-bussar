@@ -6,6 +6,10 @@ Home Assistant-integration som visar när det är dags att gå till bussen. Se `
 
 Checka aldrig in riktiga hållplatsnamn eller hållplats-ID:n. Användarens egna värden finns i `.local/` (gitignored). Testdata ska anonymiseras.
 
+## Versioner
+
+Inför en ny version: föreslå versionen och fråga, i formen "Nästa version är 0.3.0. Säg till om du vill gå till en annan version."
+
 ## Agent skills
 
 ### Issue tracker
