@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="sv">
 <!-- Förhandsvisning av Bussar-kortet med påhittade sensorer, för visuell kontroll.
-     Kör: python3 -m http.server 8765  och öppna  http://localhost:8765/tests/js/preview.html?theme=dark -->
+     Kör: python3 -m http.server 8765  och öppna  http://localhost:8765/tests/js/preview.html?theme=dark
+     Två streck per linje: lägg till &following_bar=1 -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,7 +24,8 @@
 <bussar-card></bussar-card>
 <script type="module">
   import "../../custom_components/bussar/www/bussar-card.js";
-  document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "light";
+  const params = new URLSearchParams(location.search);
+  document.documentElement.dataset.theme = params.get("theme") || "light";
   const iso = (s) => new Date(Date.now() + s * 1000).toISOString();
   const sensor = (line, destination, left, following, extra = {}) => ({
     state: String(Math.floor(left / 60)),
@@ -35,13 +37,13 @@
     states: {
       "sensor.linje_10": sensor("10", "Ort A", 1000, 1900, { delay_minutes: 2, is_realtime: true }),
       "sensor.linje_20": sensor("20", "Ort B", 500, 1400, { is_realtime: true, delay_minutes: -1 }),
-      "sensor.linje_40": sensor("40", "Ort C", 200, 1100),
+      "sensor.linje_40": sensor("40", "Ort C", 200, 450),
       "sensor.linje_30": sensor("30", "Ort D", 0, null, { expected: null }),
       "sensor.otillganglig": { state: "unavailable", attributes: { friendly_name: "50 läge A, Hållplats A" } },
     },
   };
   const card = document.querySelector("bussar-card");
-  card.setConfig({ title: "Bussar", entities: Object.keys(hass.states) });
+  card.setConfig({ title: "Bussar", entities: Object.keys(hass.states), following_bar: params.has("following_bar") });
   card.hass = hass;
 </script>
 </body>

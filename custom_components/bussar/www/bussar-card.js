@@ -40,6 +40,9 @@ const STYLE = `
     background: color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
   .fill { height: 100%; width: 0; border-radius: 5px; background: var(--zone-color, transparent);
     transition: width .9s linear, background .4s; }
+  .bar.following { height: 5px; border-radius: 3px; }
+  .bar.following .fill { border-radius: 3px; opacity: .55; }
+  .bar[hidden] { display: none; }
   .plenty { --zone-color: var(--bussar-plenty); }
   .go { --zone-color: var(--bussar-go); }
   .run { --zone-color: var(--bussar-run); }
@@ -55,18 +58,29 @@ function delayNode(delay) {
   return span;
 }
 
+// Zonklassen sitter på stapeln, så att varje stapel får färgen för sin egen buss.
+function showBar(bar, model, prefix, emptyLabel) {
+  bar.classList.remove("plenty", "go", "run");
+  if (model?.zone) bar.classList.add(model.zone);
+  const zone = model?.zone ? ZONE_LABEL[model.zone] : null;
+  bar.setAttribute("aria-label", zone ? (prefix ? `${prefix}: ${zone.toLowerCase()}` : zone) : emptyLabel);
+  bar.firstElementChild.style.width = `${((model?.fill ?? 0) * 100).toFixed(1)}%`;
+}
+
 // En rad byggs en gång. Varje sekund uppdateras bara text, klasser och stapelns bredd,
 // så att stapeln glider och realtidspunkten pulserar utan att startas om.
 class Row {
-  constructor(entityId) {
+  constructor(entityId, followingBar) {
     this.entityId = entityId;
+    this.followingBar = followingBar;
     this.el = document.createElement("div");
     this.el.className = "row";
     this.el.innerHTML = `
       <span class="badge"></span>
       <span class="left"><span class="dest"></span><span class="sub now"></span></span>
       <span class="right"><span class="min"><span class="live" title="Realtid" hidden></span><span class="minutes"></span></span><span class="sub next"></span></span>
-      <div class="bar" role="img"><div class="fill"></div></div>`;
+      <div class="bar current" role="img"><div class="fill"></div></div>
+      <div class="bar following" role="img" hidden><div class="fill"></div></div>`;
     const q = (sel) => this.el.querySelector(sel);
     this.badge = q(".badge");
     this.dest = q(".dest");
@@ -74,8 +88,9 @@ class Row {
     this.live = q(".live");
     this.minutes = q(".minutes");
     this.next = q(".next");
-    this.bar = q(".bar");
-    this.fill = q(".fill");
+    this.bar = q(".bar.current");
+    this.followingBarEl = q(".bar.following");
+    this.followingBarEl.hidden = !followingBar;
   }
 
   update(stateObj, nowMs, timeZone, selected) {
@@ -90,8 +105,6 @@ class Row {
   }
 
   _show(row) {
-    this.el.classList.remove("plenty", "go", "run");
-    if (row.zone) this.el.classList.add(row.zone);
     this.badge.textContent = row.line ?? "?";
     // Utan vald linjefärg gäller temats färger från stilen.
     this.badge.style.background = row.color ?? "";
@@ -100,9 +113,14 @@ class Row {
     this.live.hidden = !row.live;
     this.minutes.textContent = row.minutes === null || row.minutes === undefined ? "–" : `${row.minutes} min`;
     this.now.replaceChildren(...(row.clock ? [row.clock, ...this._delay(row.delay)] : []));
-    this.next.textContent = row.followingClock ? `nästa ${row.followingClock}` : "";
-    this.bar.setAttribute("aria-label", row.zone ? ZONE_LABEL[row.zone] : "Ingen buss att hinna");
-    this.fill.style.width = `${((row.fill ?? 0) * 100).toFixed(1)}%`;
+    if (this.followingBar) {
+      // Med två streck visar raden nästa buss som minuter, i linje med dess stapel.
+      this.next.textContent = row.following ? `nästa ${row.following.minutes} min` : "";
+      showBar(this.followingBarEl, row.following, "Nästa buss", "Ingen nästa buss");
+    } else {
+      this.next.textContent = row.followingClock ? `nästa ${row.followingClock}` : "";
+    }
+    showBar(this.bar, row, "", "Ingen buss att hinna");
   }
 
   _delay(delay) {
@@ -115,6 +133,9 @@ class BussarCard extends HTMLElement {
   setConfig(config) {
     if (config.entities !== undefined && !Array.isArray(config.entities)) {
       throw new Error("entities ska vara en lista med sensorer");
+    }
+    if (config.following_bar !== undefined && typeof config.following_bar !== "boolean") {
+      throw new Error("following_bar ska vara true eller false");
     }
     this._config = { ...config, entities: config.entities ?? [] };
     this._rows = null;
@@ -178,7 +199,7 @@ class BussarCard extends HTMLElement {
     title.hidden = !this._config.title;
     const rows = this.shadowRoot.querySelector(".rows");
     if (this._rows === null) {
-      this._rows = this._config.entities.map((id) => new Row(id));
+      this._rows = this._config.entities.map((id) => new Row(id, this._config.following_bar === true));
       rows.replaceChildren(...this._rows.map((r) => r.el));
       if (this._rows.length === 0) {
         rows.innerHTML = `<div class="hint">Lägg till Bussar-sensorer under entities.</div>`;

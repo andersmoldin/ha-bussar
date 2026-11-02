@@ -118,3 +118,22 @@ test("raden får linjens färg från sensorn", () => {
   assert.equal(row.color, "#000000");
   assert.equal(row.textColor, "#fff");
 });
+
+test("nästa buss får egna minuter, zon och fyllnad på samma skala", () => {
+  // Bussen 19:59:29 är 269 s bort (spring), nästa 20:00:00 är 300 s bort (gå nu).
+  const row = rowModel(sensor({ following_expected: "2026-10-17T20:00:00+02:00" }), at("19:55:00"), TZ);
+
+  assert.equal(row.zone, "run");
+  assert.deepEqual(row.following, { minutes: 5, zone: "go", fill: 0.24 });
+});
+
+test("nästa buss långt bort är gott om tid med full stapel", () => {
+  assert.deepEqual(rowModel(sensor(), at("19:43:36"), TZ).following, { minutes: 31, zone: "plenty", fill: 1 });
+});
+
+test("utan nästa buss, och efter bytet vid springgränsen, finns ingen andra stapel", () => {
+  assert.equal(rowModel(sensor({ following_expected: null }), at("19:43:36"), TZ).following, null);
+  assert.equal(rowModel(sensor(), at("19:57:30"), TZ).following, null);
+  assert.equal(rowModel(sensor({ expected: null, following_expected: null }), at("19:43:36"), TZ).following, null);
+  assert.equal(rowModel({ state: "unavailable", attributes: {} }, at("19:43:36"), TZ).following, null);
+});
