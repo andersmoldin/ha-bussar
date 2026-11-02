@@ -2,7 +2,8 @@
 <html lang="sv">
 <!-- Förhandsvisning av Bussar-kortet med påhittade sensorer, för visuell kontroll.
      Kör: python3 -m http.server 8765  och öppna  http://localhost:8765/tests/js/preview.html?theme=dark
-     Två streck per linje: lägg till &following_bar=1 -->
+     Två streck per linje: lägg till &following_bar=1. Kompakt läge: &layout=compact eller &layout=dense.
+     Smal kolumn: &width=260 -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -43,7 +44,13 @@
     },
   };
   const card = document.querySelector("bussar-card");
-  card.setConfig({ title: "Bussar", entities: Object.keys(hass.states), following_bar: params.has("following_bar") });
+  if (params.has("width")) document.body.style.maxWidth = `${Number(params.get("width"))}px`;
+  card.setConfig({
+    title: "Bussar",
+    entities: Object.keys(hass.states),
+    following_bar: params.has("following_bar"),
+    ...(params.has("layout") ? { layout: params.get("layout") } : {}),
+  });
   card.hass = hass;
 </script>
 </body>

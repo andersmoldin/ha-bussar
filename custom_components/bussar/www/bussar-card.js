@@ -1,11 +1,14 @@
 // Bussar-kortet: en rad per bevakad linje med en stapel som töms mot springgränsen.
 // Design från prototypen (issue #5): variant A2, med aktuell avgång under destinationen
 // och nästa buss under minuterna. All räknelogik finns i card-model.js.
+// Två kompakta lägen (layout i YAML): compact har allt på en rad med stapeln mellan
+// destination och minuter, dense är normal-layoutens uppbyggnad hopdragen till en textrad.
 
 // Samma version som kortet laddades med, så att en HACS-uppdatering inte blandar
 // nytt kort med en gammal cachad card-model.js.
 const version = new URL(import.meta.url).search;
 const { rowModel } = await import(`./card-model.js${version}`);
+const { LAYOUTS, cardConfig, cardSize } = await import(`./card-config.js${version}`);
 const { rowKey } = await import(`./map-model.js${version}`);
 const { BusMap, MAP_STYLE } = await import(`./bussar-map.js${version}`);
 
@@ -36,7 +39,8 @@ const STYLE = `
   .live[hidden] { display: none; }
   @keyframes pulse { 50% { opacity: .35; } }
   @media (prefers-reduced-motion: reduce) { .live { animation: none; } }
-  .bar { grid-column: 1 / -1; height: 10px; border-radius: 5px; overflow: hidden;
+  .bars { grid-column: 1 / -1; display: grid; gap: 4px; }
+  .bar { height: 10px; border-radius: 5px; overflow: hidden;
     background: color-mix(in srgb, var(--primary-text-color) 8%, transparent); }
   .fill { height: 100%; width: 0; border-radius: 5px; background: var(--zone-color, transparent);
     transition: width .9s linear, background .4s; }
@@ -47,7 +51,51 @@ const STYLE = `
   .go { --zone-color: var(--bussar-go); }
   .run { --zone-color: var(--bussar-run); }
   .hint { padding: 16px; color: var(--secondary-text-color); }
-${MAP_STYLE}`;
+  .foll, .min-delay { display: none; }
+${MAP_STYLE}
+  /* Båda kompakta lägena: mindre titel och kartknapp, och smal kolumn känns igen på radernas bredd. */
+  .compact .title, .dense .title { padding: 10px 16px 2px; font-size: 16px; }
+  .compact .toggle, .dense .toggle { padding: 6px; font-size: 13px; }
+  .compact .rows, .dense .rows { container-type: inline-size; }
+  .compact .live, .dense .live { width: 6px; height: 6px; margin-right: 4px; vertical-align: 2px; }
+
+  /* compact: bricka, destination, staplar och minuter på en rad; inget klockslag. */
+  .compact .row { padding: 6px 16px; grid-template-columns: auto minmax(0, 1fr) minmax(64px, 1.6fr) auto;
+    gap: 0 10px; min-height: 22px; }
+  .compact .badge { min-width: 28px; height: 22px; padding: 0 6px; font-size: 12px; border-radius: 6px; }
+  .compact .dest { font-size: 14px; }
+  .compact .now { display: none; }
+  .compact .bars { grid-column: 3; grid-row: 1; gap: 3px; }
+  .compact .bar { height: 5px; border-radius: 3px; }
+  .compact .bar.following { height: 3px; }
+  .compact .right { grid-column: 4; grid-row: 1; min-width: 88px; }
+  .compact .min { font-size: 15px; }
+  .compact .min-delay { display: inline; font-size: 11px; }
+  .compact .min-delay:empty { display: none; }
+  .compact .next { font-size: 11px; }
+  @container (max-width: 300px) {
+    .compact .row { grid-template-columns: auto minmax(0, 1fr) auto; gap: 3px 10px; }
+    .compact .right { grid-column: 3; min-width: 0; }
+    .compact .bars { grid-column: 1 / -1; grid-row: 2; }
+  }
+
+  /* dense: destination och klockslag på en rad, "nästa" efter minuterna, tunna staplar.
+     Med två streck får nästa buss en egen liten rad mellan staplarna. */
+  .dense .row { padding: 7px 16px; gap: 3px 10px; }
+  .dense .badge { min-width: 30px; height: 24px; font-size: 13px; border-radius: 7px; }
+  .dense .left { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dense .dest { display: inline; font-size: 14px; }
+  .dense .now { display: inline; font-size: 12px; margin-left: 6px; }
+  .dense .min { display: inline; font-size: 16px; }
+  .dense .next { display: inline; font-size: 12px; margin-left: 6px; }
+  .dense .next:empty { display: none; }
+  .dense .bars { display: contents; }
+  .dense .bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; }
+  .dense .bar.following { height: 3px; }
+  .dense .foll { grid-column: 1 / -1; display: flex; justify-content: space-between; font-size: 12px;
+    color: var(--secondary-text-color); font-variant-numeric: tabular-nums; margin-top: 1px; }
+  .dense .foll[hidden] { display: none; }
+  @container (max-width: 300px) { .dense .next { display: none; } }`;
 
 function delayNode(delay) {
   const minutes = Number(delay);
@@ -70,27 +118,37 @@ function showBar(bar, model, prefix, emptyLabel) {
 // En rad byggs en gång. Varje sekund uppdateras bara text, klasser och stapelns bredd,
 // så att stapeln glider och realtidspunkten pulserar utan att startas om.
 class Row {
-  constructor(entityId, followingBar) {
+  constructor(entityId, followingBar, layout) {
     this.entityId = entityId;
     this.followingBar = followingBar;
+    this.layout = layout;
     this.el = document.createElement("div");
     this.el.className = "row";
     this.el.innerHTML = `
       <span class="badge"></span>
       <span class="left"><span class="dest"></span><span class="sub now"></span></span>
-      <span class="right"><span class="min"><span class="live" title="Realtid" hidden></span><span class="minutes"></span></span><span class="sub next"></span></span>
-      <div class="bar current" role="img"><div class="fill"></div></div>
-      <div class="bar following" role="img" hidden><div class="fill"></div></div>`;
+      <span class="right"><span class="min"><span class="live" title="Realtid" hidden></span><span class="minutes"></span><span class="min-delay"></span></span><span class="sub next"></span></span>
+      <div class="bars">
+        <div class="bar current" role="img"><div class="fill"></div></div>
+        <div class="foll" hidden><span class="foll-clock"></span><span class="foll-min"></span></div>
+        <div class="bar following" role="img" hidden><div class="fill"></div></div>
+      </div>`;
     const q = (sel) => this.el.querySelector(sel);
     this.badge = q(".badge");
     this.dest = q(".dest");
     this.now = q(".now");
     this.live = q(".live");
     this.minutes = q(".minutes");
+    this.minDelay = q(".min-delay");
     this.next = q(".next");
+    this.foll = q(".foll");
+    this.follClock = q(".foll-clock");
+    this.follMin = q(".foll-min");
     this.bar = q(".bar.current");
     this.followingBarEl = q(".bar.following");
     this.followingBarEl.hidden = !followingBar;
+    // Nästa buss egen lilla rad finns bara i dense med två streck.
+    this.foll.hidden = !(followingBar && layout === "dense");
   }
 
   update(stateObj, nowMs, timeZone, selected) {
@@ -113,12 +171,23 @@ class Row {
     this.live.hidden = !row.live;
     this.minutes.textContent = row.minutes === null || row.minutes === undefined ? "–" : `${row.minutes} min`;
     this.now.replaceChildren(...(row.clock ? [row.clock, ...this._delay(row.delay)] : []));
+    // compact har inget klockslag, så förseningen hänger på minuterna där.
+    this.minDelay.replaceChildren(...(this.layout === "compact" ? this._delay(row.delay) : []));
     if (this.followingBar) {
       // Med två streck visar raden nästa buss som minuter, i linje med dess stapel.
-      this.next.textContent = row.following ? `nästa ${row.following.minutes} min` : "";
+      const next = row.following ? `nästa ${row.following.minutes} min` : "";
+      if (this.layout === "dense") {
+        // dense: nästa buss står på egen rad ovanför sin stapel, med klockslaget till vänster.
+        this.next.textContent = "";
+        this.follClock.textContent = row.following ? (row.followingClock ?? "") : "";
+        this.follMin.textContent = next;
+      } else {
+        this.next.textContent = next;
+      }
       showBar(this.followingBarEl, row.following, "Nästa buss", "Ingen nästa buss");
     } else {
-      this.next.textContent = row.followingClock ? `nästa ${row.followingClock}` : "";
+      // compact visar inga klockslag, inte heller för nästa buss.
+      this.next.textContent = row.followingClock && this.layout !== "compact" ? `nästa ${row.followingClock}` : "";
     }
     showBar(this.bar, row, "", "Ingen buss att hinna");
   }
@@ -131,13 +200,7 @@ class Row {
 
 class BussarCard extends HTMLElement {
   setConfig(config) {
-    if (config.entities !== undefined && !Array.isArray(config.entities)) {
-      throw new Error("entities ska vara en lista med sensorer");
-    }
-    if (config.following_bar !== undefined && typeof config.following_bar !== "boolean") {
-      throw new Error("following_bar ska vara true eller false");
-    }
-    this._config = { ...config, entities: config.entities ?? [] };
+    this._config = cardConfig(config);
     this._rows = null;
     this._render();
   }
@@ -163,7 +226,7 @@ class BussarCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 1 + Math.max(1, this._config?.entities.length ?? 1);
+    return this._config ? cardSize(this._config) : 2;
   }
 
   static getStubConfig(hass) {
@@ -194,12 +257,15 @@ class BussarCard extends HTMLElement {
   _render() {
     if (!this._config || !this._hass) return;
     if (!this.shadowRoot) this._build();
+    // Läget sitter som klass på kortet; stilen för compact och dense hänger på den.
+    const card = this.shadowRoot.querySelector("ha-card");
+    for (const layout of LAYOUTS) card.classList.toggle(layout, this._config.layout === layout);
     const title = this.shadowRoot.querySelector(".title");
     title.textContent = this._config.title ?? "";
     title.hidden = !this._config.title;
     const rows = this.shadowRoot.querySelector(".rows");
     if (this._rows === null) {
-      this._rows = this._config.entities.map((id) => new Row(id, this._config.following_bar === true));
+      this._rows = this._config.entities.map((id) => new Row(id, this._config.following_bar, this._config.layout));
       rows.replaceChildren(...this._rows.map((r) => r.el));
       if (this._rows.length === 0) {
         rows.innerHTML = `<div class="hint">Lägg till Bussar-sensorer under entities.</div>`;
