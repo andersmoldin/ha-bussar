@@ -35,7 +35,7 @@ export function lineColors(color) {
   return { color, textColor: luminance(color) > DARK_TEXT_ABOVE ? "#000" : "#fff" };
 }
 
-const EMPTY = { minutes: null, zone: null, fill: 0, clock: null, delay: null, live: null, followingClock: null };
+const EMPTY = { minutes: null, zone: null, fill: 0, clock: null, delay: null, live: null, followingClock: null, following: null };
 
 // HA skickar inga extra attribut för en otillgänglig entitet, bara friendly_name,
 // som är titeln "<linje> läge <läge>, <hållplats>".
@@ -43,6 +43,20 @@ function unavailableRow(name) {
   const line = name?.match(/^(.+?) läge /)?.[1] ?? null;
   const destination = name ? `${name} – ej tillgänglig` : "Ej tillgänglig";
   return { line, destination, ...EMPTY };
+}
+
+// Minuter kvar, zon och stapelns fyllnad för en buss. Stapeln är tom vid springgränsen och
+// full vid gångtid + fönster + FULL_EXTRA_SECONDS, samma skala för båda bussarna i raden.
+export function barModel(expectedMs, nowMs, timing) {
+  const secondsLeft = (expectedMs - nowMs) / 1000;
+  const full = timing.walk + timing.window + FULL_EXTRA_SECONDS;
+  const ratio = (secondsLeft - timing.run) / (full - timing.run);
+  const fill = Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio)) : 0;
+  return {
+    minutes: Math.floor(secondsLeft / 60),
+    zone: zoneFor(secondsLeft, timing),
+    fill: Math.round(fill * 1000) / 1000,
+  };
 }
 
 export function rowModel(stateObj, nowMs, timeZone) {
@@ -68,18 +82,13 @@ export function rowModel(stateObj, nowMs, timeZone) {
     return { ...base, ...EMPTY };
   }
 
-  const secondsLeft = (expected - nowMs) / 1000;
-  const full = timing.walk + timing.window + FULL_EXTRA_SECONDS;
-  const ratio = (secondsLeft - timing.run) / (full - timing.run);
-  const fill = Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio)) : 0;
   return {
     ...base,
-    minutes: Math.floor(secondsLeft / 60),
-    zone: zoneFor(secondsLeft, timing),
-    fill: Math.round(fill * 1000) / 1000,
+    ...barModel(expected, nowMs, timing),
     clock: clockIn(expected, timeZone),
     delay,
     live,
     followingClock: following === null ? null : clockIn(following, timeZone),
+    following: following === null ? null : barModel(following, nowMs, timing),
   };
 }

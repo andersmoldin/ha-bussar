@@ -62,9 +62,12 @@ title: Bussar
 entities:
   - sensor.10_lage_a_hallplats_a
   - sensor.40_lage_a_hallplats_b
+following_bar: true   # valfri, två streck per linje
 ```
 
 Varje rad visar linje och destination med aktuell avgång under (`23:40 +2`), och till höger minuter kvar med nästa buss under (`nästa 23:55`). Linjebrickan har linjens valda färg med vit eller svart text, eller temats färg om ingen färg är vald. Stapeln töms mot springgränsen och är grön (gott om tid), gul (nu passar det att gå) eller orange (spring). En pulserande grön punkt betyder realtid. Kortet räknar ner varje sekund och byter till nästa buss vid springgränsen.
+
+Med `following_bar: true` får varje rad ett andra, tunnare streck för nästa buss, med samma skala och zonfärger som det första. Under minuterna står då minuter till nästa buss (`nästa 12 min`) i stället för klockslaget. Utan nyckeln, eller med `false`, ser kortet ut som förut.
 
 Med **Visa karta** fälls en karta ut under raderna (kräver nyckeln för positioner, se nedan). Varje buss är en cirkel i linjens färg (temats färg om ingen är vald), med linjenumret inuti, och hållplatserna är ringar. Kartan zoomar en gång när den fälls ut, till hemmet, hållplatserna och kortets bussar, och flyttar sig sedan inte själv. Tryck på en rad för att markera radens bussar. Utan positionsnyckel försvinner knappen vid första försöket. Kartan är HA:s egen, och därför kräver Bussar Home Assistant 2026.10 eller senare.
 
